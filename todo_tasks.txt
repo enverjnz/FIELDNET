@@ -1,0 +1,13 @@
+1. Ursprüngliche Version mit Funktionen wieder bekommen & Git pushen dann. (auf Policies achten)
+    -> Vereinsverwaltungscreen für coaches öffnet nichtmehr seit composer 2.5 code änderungen gemacht hat. 
+    -> Vermutung: weil ich alle supabase policies gelöscht habe?
+    -> Falls mit composer nicht machbar, Claude API mit Guthaben verbinden und nochmal versuchen
+    -> Alternative: pro+ 40€ auschecken
+
+2. neue Mail erstellen
+    -> für Socials
+    -> für sonstiges
+
+3. Ligenbereich glatt ziehen
+    -> Ligen verknüpfung mit Teams und Games
+    -> 

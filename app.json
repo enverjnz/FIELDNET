@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "GridironDE",
+    "slug": "GridironDE",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/fieldnet_logo.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/fieldnet_logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/fieldnet_logo.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/fieldnet_logo.png"
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
+  }
+}
