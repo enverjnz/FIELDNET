@@ -24,6 +24,7 @@ import TickerCodeScreen from './screens/TickerCodeScreen';
 import TimelineScreen from './screens/TimelineScreen.js';
 import ProfilScreen from './screens/ProfilScreen.js';
 import CoachOnboardingWizard from './screens/onboarding/CoachOnboardingWizard';
+import InvoiceCodeScreen from './screens/InvoiceCodeScreen';
 import TeamDashboardScreen from './screens/TeamDashboardScreen.js';
 import PlayerOnboardingFlow from './screens/onboarding/PlayerOnboardingFlow';
 import LandingScreen from './screens/auth/LandingScreen';
@@ -31,6 +32,7 @@ import LoginScreen from './screens/auth/LoginScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import DeleteProfileScreen from './screens/DeleteProfileScreen';
 import { supabase } from './lib/supabase';
+import { getCoachVerwaltungState, CoachPendingError } from './lib/invoiceCode';
 
 
 const REGIONS = ['ALLE REGIONEN', 'BAWÜ', 'BAYERN', 'NRW', 'HESSEN', 'NORD', 'OST', 'WEST'];
@@ -43,6 +45,8 @@ export default function App() {
   const [activeLeague, setActiveLeague] = useState(0); // 0 bedeutet 'ALLE LIGEN' sind aktiv
   const [selectedGame, setSelectedGame] = useState(null); // kein Spiel ausgewählt
   const [showTeamCreation, setShowTeamCreation]   = useState(false);
+  const [showInvoiceCode, setShowInvoiceCode]     = useState(false);
+  const [pendingInviteCodeId, setPendingInviteCodeId] = useState(null);
   const [showTeamDashboard, setShowTeamDashboard] = useState(false);
   const [dashboardTeamId, setDashboardTeamId]     = useState(null);
   const [userRole, setUserRole]                   = useState(null);
@@ -95,6 +99,8 @@ export default function App() {
     setSelectedGame(null);
     setShowTeamDashboard(false);
     setShowTeamCreation(false);
+    setShowInvoiceCode(false);
+    setPendingInviteCodeId(null);
     setDashboardTeamId(null);
     setUserRole(null);
     setShowTickerFlow(false);
@@ -156,20 +162,25 @@ export default function App() {
         return;
       }
 
-      // Team-Zuordnung nur über team_managers prüfen
-      const { data: managerRow } = await supabase
-        .from('team_managers')
-        .select('team_id')
-        .eq('profile_id', user.id)
-        .maybeSingle();
+      const state = await getCoachVerwaltungState(user.id);
 
-      if (managerRow?.team_id) {
-        setDashboardTeamId(managerRow.team_id);
+      if (state.route === 'dashboard') {
+        setDashboardTeamId(state.teamId);
         setShowTeamDashboard(true);
-      } else {
+      } else if (state.route === 'wizard') {
+        setPendingInviteCodeId(state.inviteCodeId);
         setShowTeamCreation(true);
+      } else {
+        setShowInvoiceCode(true);
       }
     } catch (e) {
+      if (e instanceof CoachPendingError) {
+        Alert.alert(
+          'Anfrage läuft',
+          'Deine Trainer-Anfrage wartet auf Freigabe durch den Verein. Du erhältst Zugriff, sobald du angenommen wurdest.',
+        );
+        return;
+      }
       console.warn('Vereinsverwaltung check fehlgeschlagen:', e?.message);
     }
   };
@@ -555,16 +566,33 @@ export default function App() {
         </View>
       )}
 
-      {/* VEREINSVERWALTUNG – COACH ONBOARDING (Trainer ohne Team) */}
-      {showTeamCreation && (
+      {/* VEREINSVERWALTUNG – RECHNUNGSCODE (Gründungs-Coach ohne Code) */}
+      {showInvoiceCode && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#FFFFFF', zIndex: 200 }}>
+          <InvoiceCodeScreen
+            onBack={() => setShowInvoiceCode(false)}
+            onSuccess={(inviteCodeId) => {
+              setPendingInviteCodeId(inviteCodeId);
+              setShowInvoiceCode(false);
+              setShowTeamCreation(true);
+            }}
+          />
+        </View>
+      )}
+
+      {/* VEREINSVERWALTUNG – COACH ONBOARDING (Code eingelöst, Team anlegen) */}
+      {showTeamCreation && pendingInviteCodeId && (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#FFFFFF', zIndex: 200 }}>
           <CoachOnboardingWizard
+            inviteCodeId={pendingInviteCodeId}
             onBack={() => setShowTeamCreation(false)}
             onSuccess={(teamId) => {
               setShowTeamCreation(false);
+              setPendingInviteCodeId(null);
               setDashboardTeamId(teamId);
               setShowTeamDashboard(true);
               setUserRole('coach');
+              bumpProfileRefresh();
             }}
           />
         </View>

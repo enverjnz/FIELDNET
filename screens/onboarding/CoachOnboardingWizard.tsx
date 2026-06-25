@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { ArrowLeft, ChevronRight, ChevronDown, X, Check } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
+import { linkInvoiceCodeToTeam } from '../../lib/invoiceCode';
 
 const B = '#1A2F6E';
 const R = '#C01830';
@@ -30,6 +31,7 @@ type League = { id: string; name: string };
 type Props = {
   onBack: () => void;
   onSuccess: (teamId: string) => void;
+  inviteCodeId: string;
 };
 
 type PipelineStep = 'team' | 'manager' | 'profile' | 'done';
@@ -41,7 +43,7 @@ const PIPELINE_LABELS: Record<PipelineStep, string> = {
   done: 'Fertig!',
 };
 
-export default function CoachOnboardingWizard({ onBack, onSuccess }: Props) {
+export default function CoachOnboardingWizard({ onBack, onSuccess, inviteCodeId }: Props) {
   const [step, setStep] = useState(1);
 
   // Step 1
@@ -182,6 +184,7 @@ export default function CoachOnboardingWizard({ onBack, onSuccess }: Props) {
       await supabase.auth.updateUser({ data: { role: 'coach' } });
 
       setPipelineStep('done');
+      await linkInvoiceCodeToTeam(inviteCodeId, team.id);
       setTimeout(() => onSuccess(team.id), 400);
     } catch (e: any) {
       if (createdTeamId) {

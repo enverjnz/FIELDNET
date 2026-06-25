@@ -4,9 +4,10 @@ import {
   SafeAreaView, StatusBar, ActivityIndicator,
   Image, ScrollView, RefreshControl, Alert,
 } from 'react-native';
-import { ArrowLeft, Users, Calendar, Zap, ChevronRight, MapPin, Hash, Copy, Check, Trash2, UserMinus } from 'lucide-react-native';
+import { ArrowLeft, Users, Calendar, Zap, ChevronRight, MapPin, Hash, Copy, Check, Trash2, UserMinus, X } from 'lucide-react-native';
 import { Clipboard } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { acceptMembershipRequest, rejectMembershipRequest } from '../lib/teamMembership';
 import TeamProfileScreen from './TeamProfileScreen';
 import GameCreateScreen from './GameCreateScreen';
 
@@ -26,11 +27,13 @@ const STATUS_CONFIG = {
 export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onTeamLeft }) {
   const [team, setTeam]             = useState(null);
   const [games, setGames]           = useState([]);
+  const [pendingRequests, setPendingRequests] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [copiedCode, setCopiedCode] = useState(null);
   const [deletingGameId, setDeletingGameId] = useState(null);
   const [leavingTeam, setLeavingTeam] = useState(false);
+  const [actingOnId, setActingOnId] = useState(null);
   const [activeScreen, setActiveScreen] = useState(null); // null | 'profile' | 'game'
 
   const onRefresh = async () => {
@@ -123,7 +126,7 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onTe
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [{ data: teamData }, { data: gamesData }] = await Promise.all([
+    const [{ data: teamData }, { data: gamesData }, { data: requestsData }] = await Promise.all([
       supabase
         .from('teams')
         .select('id, name, short_name, town, avatar_teamlogo, leagues(name, league_logo_url)')
@@ -134,11 +137,58 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onTe
         .select('id, game_date, game_time, location, is_home_game, away_team_name, home_score, away_score, status, game_code')
         .eq('home_team_id', teamId)
         .order('game_date', { ascending: true }),
+      supabase
+        .from('team_memberships')
+        .select('id, status, player_id, profiles(id, first_name, last_name, avatar, coaching_role)')
+        .eq('team_id', teamId)
+        .in('status', ['pending', 'coach_pending']),
     ]);
     setTeam(teamData ?? null);
     setGames(gamesData ?? []);
+    setPendingRequests(requestsData ?? []);
     setLoading(false);
   }, [teamId]);
+
+  const handleAcceptRequest = async (member) => {
+    setActingOnId(member.id);
+    try {
+      await acceptMembershipRequest(member.id, teamId, member.player_id, member.status);
+      await loadData();
+    } catch (err) {
+      Alert.alert('Fehler', err?.message ?? 'Anfrage konnte nicht angenommen werden.');
+    } finally {
+      setActingOnId(null);
+    }
+  };
+
+  const handleRejectRequest = (member) => {
+    const p = member.profiles;
+    const name = p ? [p.first_name, p.last_name].filter(Boolean).join(' ') : 'Diese Person';
+    const isCoach = member.status === 'coach_pending';
+
+    Alert.alert(
+      isCoach ? 'Trainer-Anfrage ablehnen' : 'Anfrage ablehnen',
+      `${name} wirklich ablehnen?`,
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Ablehnen',
+          style: 'destructive',
+          onPress: async () => {
+            setActingOnId(member.id);
+            try {
+              await rejectMembershipRequest(member.id);
+              await loadData();
+            } catch (err) {
+              Alert.alert('Fehler', err?.message ?? 'Anfrage konnte nicht abgelehnt werden.');
+            } finally {
+              setActingOnId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -209,6 +259,57 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onTe
             </>
           )}
         </TouchableOpacity>
+
+        {pendingRequests.length > 0 && (
+          <>
+            <Text style={styles.sectionLabel}>OFFENE ANFRAGEN</Text>
+            {pendingRequests.map((member) => {
+              const p = member.profiles;
+              const name = p ? [p.first_name, p.last_name].filter(Boolean).join(' ') : 'Unbekannt';
+              const initials = name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+              const isCoach = member.status === 'coach_pending';
+              const busy = actingOnId === member.id;
+
+              return (
+                <View key={member.id} style={styles.requestCard}>
+                  {p?.avatar ? (
+                    <Image source={{ uri: p.avatar }} style={styles.requestAvatar} />
+                  ) : (
+                    <View style={styles.requestAvatarPlaceholder}>
+                      <Text style={styles.requestAvatarText}>{initials}</Text>
+                    </View>
+                  )}
+                  <View style={styles.requestInfo}>
+                    <Text style={styles.requestName} numberOfLines={1}>{name}</Text>
+                    <Text style={styles.requestMeta}>
+                      {isCoach ? 'Co-Trainer-Anfrage' : 'Spieler-Anfrage'}
+                    </Text>
+                  </View>
+                  {busy ? (
+                    <ActivityIndicator color={B} size="small" />
+                  ) : (
+                    <View style={styles.requestActions}>
+                      <TouchableOpacity
+                        style={styles.requestAcceptBtn}
+                        onPress={() => handleAcceptRequest(member)}
+                        hitSlop={6}
+                      >
+                        <Check size={16} color="#10B981" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.requestRejectBtn}
+                        onPress={() => handleRejectRequest(member)}
+                        hitSlop={6}
+                      >
+                        <X size={16} color={R} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </>
+        )}
 
         <Text style={styles.sectionLabel}>VEREINSVERWALTUNG</Text>
 
@@ -512,4 +613,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   copyBtnDone: { backgroundColor: '#ECFDF5', borderColor: '#10B981' },
+
+  requestCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: BG,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 12,
+    marginBottom: 8,
+  },
+  requestAvatar: { width: 44, height: 44, borderRadius: 12 },
+  requestAvatarPlaceholder: {
+    width: 44, height: 44, borderRadius: 12,
+    backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: BORDER,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  requestAvatarText: { color: B, fontSize: 14, fontWeight: '800' },
+  requestInfo: { flex: 1 },
+  requestName: { color: B, fontSize: 15, fontWeight: '700' },
+  requestMeta: { color: MUTED, fontSize: 12, marginTop: 2 },
+  requestActions: { flexDirection: 'row', gap: 8 },
+  requestAcceptBtn: {
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center',
+  },
+  requestRejectBtn: {
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: '#FFF0F2', alignItems: 'center', justifyContent: 'center',
+  },
 });

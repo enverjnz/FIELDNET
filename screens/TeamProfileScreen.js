@@ -10,6 +10,7 @@ import {
   Check, Trash2, ChevronDown, Calendar,
 } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
+import { acceptMembershipRequest, rejectMembershipRequest } from '../lib/teamMembership';
 import FullscreenImageModal from '../components/FullscreenImageModal';
 
 const B      = '#1A2F6E';
@@ -319,17 +320,41 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
     );
   };
 
-  const acceptPlayer = async (membershipId) => {
-    const { error } = await supabase
-      .from('team_memberships')
-      .update({ status: 'approved' })
-      .eq('id', membershipId);
-    if (error) {
-      console.warn('acceptPlayer error:', JSON.stringify(error));
-      Alert.alert('Fehler', error.message);
-    } else {
+  const acceptMember = async (member) => {
+    try {
+      await acceptMembershipRequest(member.id, teamId, member.player_id, member.status);
       loadData();
+    } catch (error) {
+      console.warn('acceptMember error:', JSON.stringify(error));
+      Alert.alert('Fehler', error?.message ?? 'Anfrage konnte nicht angenommen werden.');
     }
+  };
+
+  const rejectMember = (member) => {
+    const name = member.profiles
+      ? [member.profiles.first_name, member.profiles.last_name].filter(Boolean).join(' ')
+      : 'Diese Person';
+    const isCoach = member.status === 'coach_pending';
+
+    Alert.alert(
+      isCoach ? 'Trainer-Anfrage ablehnen' : 'Anfrage ablehnen',
+      `${name} wirklich ablehnen?`,
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Ablehnen',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await rejectMembershipRequest(member.id);
+              loadData();
+            } catch (error) {
+              Alert.alert('Fehler', error?.message ?? 'Anfrage konnte nicht abgelehnt werden.');
+            }
+          },
+        },
+      ],
+    );
   };
 
   if (loading) {
@@ -517,7 +542,7 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
         {(() => {
           const visibleKader = readOnly
             ? kader.filter((m) => m.status === 'approved')
-            : kader;
+            : kader.filter((m) => m.status !== 'declined');
           return visibleKader.length === 0 ? (
           <View style={styles.emptyKader}>
             <Users size={28} color={MUTED} />
@@ -553,7 +578,9 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
                 <TouchableOpacity style={styles.playerInfo} onPress={() => setSelectedPlayer({ ...p, name, status: member.status })} activeOpacity={0.75}>
                   <Text style={styles.playerName}>{name}</Text>
                   <Text style={styles.playerMeta}>
-                    {[p?.position, p?.jersey_number ? `#${p.jersey_number}` : null].filter(Boolean).join('  ·  ') || 'Keine Position'}
+                    {member.status === 'coach_pending'
+                      ? 'Co-Trainer-Anfrage'
+                      : [p?.position, p?.jersey_number ? `#${p.jersey_number}` : null].filter(Boolean).join('  ·  ') || 'Keine Position'}
                   </Text>
                 </TouchableOpacity>
 
@@ -561,16 +588,25 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
                   <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
                 </View>
 
-                {member.status === 'pending' && !readOnly && (
-                  <TouchableOpacity
-                    style={styles.acceptBtn}
-                    onPress={() => acceptPlayer(member.id)}
-                    hitSlop={6}
-                  >
-                    <Check size={16} color={GREEN} />
-                  </TouchableOpacity>
+                {(member.status === 'pending' || member.status === 'coach_pending') && !readOnly && (
+                  <>
+                    <TouchableOpacity
+                      style={styles.acceptBtn}
+                      onPress={() => acceptMember(member)}
+                      hitSlop={6}
+                    >
+                      <Check size={16} color={GREEN} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.rejectBtn}
+                      onPress={() => rejectMember(member)}
+                      hitSlop={6}
+                    >
+                      <X size={16} color={R} />
+                    </TouchableOpacity>
+                  </>
                 )}
-                {!readOnly && (
+                {!readOnly && member.status === 'approved' && (
                   <TouchableOpacity
                     style={styles.removeBtn}
                     onPress={() => removePlayer(member.id, name)}
@@ -877,6 +913,10 @@ const styles = StyleSheet.create({
   acceptBtn: {
     width: 30, height: 30, borderRadius: 10,
     backgroundColor: '#D1FAE5', justifyContent: 'center', alignItems: 'center',
+  },
+  rejectBtn: {
+    width: 30, height: 30, borderRadius: 10,
+    backgroundColor: '#FFF0F2', justifyContent: 'center', alignItems: 'center',
   },
   removeBtn: {
     width: 30, height: 30, borderRadius: 10,

@@ -12,9 +12,10 @@ import {
   ActivityIndicator,
   Image,
 } from 'react-native';
-import { Search, X, Clock, TrendingUp, Users, User, Trophy } from 'lucide-react-native';
+import { Search, X, Clock, TrendingUp, Users, Trophy } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import TeamProfileScreen from './TeamProfileScreen';
+import PlayerProfileScreen from './PlayerProfileScreen';
 
 const CATEGORIES = [
   { key: 'all',     label: 'Alle'           },
@@ -39,6 +40,7 @@ export default function SucheScreen() {
   const [isSearching, setIsSearching]       = useState(false);
   const [recentSearches, setRecentSearches] = useState([]);
   const [viewTeamId, setViewTeamId]         = useState(null);
+  const [viewPlayerId, setViewPlayerId]     = useState(null);
   const inputRef    = useRef(null);
   const debounceRef = useRef(null);
 
@@ -67,6 +69,7 @@ export default function SucheScreen() {
             .limit(activeCategory === 'teams' ? 15 : 5);
 
           (teams || []).forEach(t => {
+            const teamInitials = (t.short_name || t.name || '?').slice(0, 2).toUpperCase();
             results.push({
               id:       `t_${t.id}`,
               type:     'team',
@@ -74,6 +77,7 @@ export default function SucheScreen() {
               name:     t.name,
               meta:     [t.leagues?.name, t.town, t.short_name].filter(Boolean).join(' · '),
               logoUrl:  t.avatar_teamlogo || t.leagues?.league_logo_url || null,
+              initials: teamInitials,
             });
           });
         }
@@ -82,7 +86,7 @@ export default function SucheScreen() {
         if (activeCategory === 'all' || activeCategory === 'players') {
           const { data: players } = await supabase
             .from('profiles')
-            .select('id, first_name, last_name, position, jersey_number')
+            .select('id, first_name, last_name, position, jersey_number, avatar')
             .eq('role', 'player')
             .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
             .limit(activeCategory === 'players' ? 15 : 5);
@@ -91,12 +95,15 @@ export default function SucheScreen() {
             const name = [p.first_name, p.last_name].filter(Boolean).join(' ');
             if (!name) return;
             results.push({
-              id:   `p_${p.id}`,
-              type: 'player',
+              id:        `p_${p.id}`,
+              type:      'player',
+              playerId:  p.id,
               name,
-              meta: [p.position, p.jersey_number ? `#${p.jersey_number}` : null]
+              meta:      [p.position, p.jersey_number ? `#${p.jersey_number}` : null]
                 .filter(Boolean)
-                .join(' - '),
+                .join(' · '),
+              avatarUrl: p.avatar || null,
+              initials:  name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase(),
             });
           });
         }
@@ -138,7 +145,19 @@ export default function SucheScreen() {
 
   const handleSelect = (item) => {
     if (item.type === 'team' && item.teamId) {
+      setViewPlayerId(null);
       setViewTeamId(item.teamId);
+      setIsFocused(false);
+      inputRef.current?.blur();
+      if (!recentSearches.includes(item.name)) {
+        setRecentSearches(prev => [item.name, ...prev].slice(0, 6));
+      }
+      return;
+    }
+
+    if (item.type === 'player' && item.playerId) {
+      setViewTeamId(null);
+      setViewPlayerId(item.playerId);
       setIsFocused(false);
       inputRef.current?.blur();
       if (!recentSearches.includes(item.name)) {
@@ -180,12 +199,22 @@ export default function SucheScreen() {
   };
 
   const renderSuggestionIcon = (item) => {
-    if (item.type === 'team' && item.logoUrl) {
-      return (
-        <Image source={{ uri: item.logoUrl }} style={styles.suggestionLogo} resizeMode="contain" />
-      );
+    if (item.type === 'team') {
+      if (item.logoUrl) {
+        return (
+          <Image source={{ uri: item.logoUrl }} style={styles.suggestionAvatar} resizeMode="contain" />
+        );
+      }
+      return <Text style={styles.suggestionInitials}>{item.initials}</Text>;
     }
-    if (item.type === 'player') return <User size={15} color="#C01830" />;
+    if (item.type === 'player') {
+      if (item.avatarUrl) {
+        return (
+          <Image source={{ uri: item.avatarUrl }} style={styles.suggestionAvatar} />
+        );
+      }
+      return <Text style={[styles.suggestionInitials, styles.suggestionInitialsPlayer]}>{item.initials}</Text>;
+    }
     if (item.type === 'league') return <Trophy size={15} color="#1A2F6E" />;
     return <Users size={15} color="#1A2F6E" />;
   };
@@ -202,6 +231,15 @@ export default function SucheScreen() {
         teamId={viewTeamId}
         readOnly
         onBack={() => setViewTeamId(null)}
+      />
+    );
+  }
+
+  if (viewPlayerId) {
+    return (
+      <PlayerProfileScreen
+        profileId={viewPlayerId}
+        onBack={() => setViewPlayerId(null)}
       />
     );
   }
@@ -456,8 +494,10 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   suggestionBorder:   { borderBottomWidth: 1, borderBottomColor: BG },
-  suggestionIcon:     { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
-  suggestionLogo:     { width: 34, height: 34, borderRadius: 10 },
+  suggestionIcon:     { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  suggestionAvatar:   { width: 40, height: 40, borderRadius: 12 },
+  suggestionInitials: { color: B, fontSize: 13, fontWeight: '800' },
+  suggestionInitialsPlayer: { color: R },
   iconTeam:           { backgroundColor: '#E8EDF8' },
   iconPlayer:         { backgroundColor: '#FFF0F2' },
   suggestionName:     { color: B, fontSize: 14, fontWeight: '700' },
