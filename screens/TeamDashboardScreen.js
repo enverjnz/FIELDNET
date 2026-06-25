@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabase';
 import { acceptMembershipRequest, rejectMembershipRequest } from '../lib/teamMembership';
 import TeamProfileScreen from './TeamProfileScreen';
 import GameCreateScreen from './GameCreateScreen';
+import TimelineScreen from './TimelineScreen';
 
 const B      = '#1A2F6E';
 const R      = '#C01830';
@@ -34,7 +35,8 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onTe
   const [deletingGameId, setDeletingGameId] = useState(null);
   const [leavingTeam, setLeavingTeam] = useState(false);
   const [actingOnId, setActingOnId] = useState(null);
-  const [activeScreen, setActiveScreen] = useState(null); // null | 'profile' | 'game'
+  const [activeScreen, setActiveScreen] = useState(null); // null | 'profile' | 'game' | 'timeline'
+  const [timelineGameId, setTimelineGameId] = useState(null);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -207,6 +209,15 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onTe
       <GameCreateScreen
         teamId={teamId}
         onBack={() => { setActiveScreen(null); loadData(); }}
+      />
+    );
+  }
+
+  if (activeScreen === 'timeline' && timelineGameId) {
+    return (
+      <TimelineScreen
+        gameId={timelineGameId}
+        onBack={() => { setActiveScreen(null); setTimelineGameId(null); }}
       />
     );
   }
@@ -386,13 +397,14 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onTe
           </View>
         ) : (
           games.map((game) => {
-            const cfg      = STATUS_CONFIG[game.status] ?? STATUS_CONFIG.scheduled;
+            const statusNorm = (game.status ?? '').toLowerCase();
+            const cfg      = STATUS_CONFIG[statusNorm] ?? STATUS_CONFIG.scheduled;
             const opponent = game.away_team_name ?? 'Unbekannt';
             const dateStr  = game.game_date
               ? new Date(game.game_date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
               : null;
-            const isLive   = game.status === 'live';
-            const isDone   = game.status === 'finished';
+            const isLive   = statusNorm === 'live';
+            const isDone   = statusNorm === 'finished';
 
             return (
               <View key={game.id} style={styles.gameCard}>
@@ -465,6 +477,19 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onTe
                     </View>
                   ) : null}
                 </View>
+
+                {(isDone || isLive) && (
+                  <TouchableOpacity
+                    style={styles.timelineLink}
+                    onPress={() => {
+                      setTimelineGameId(game.id);
+                      setActiveScreen('timeline');
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={styles.timelineLinkText}>Spielverlauf ansehen ➔</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             );
           })
@@ -644,4 +669,12 @@ const styles = StyleSheet.create({
     width: 34, height: 34, borderRadius: 10,
     backgroundColor: '#FFF0F2', alignItems: 'center', justifyContent: 'center',
   },
+
+  timelineLink: {
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+  },
+  timelineLinkText: { color: R, fontSize: 11, fontWeight: '800', letterSpacing: 0.4 },
 });

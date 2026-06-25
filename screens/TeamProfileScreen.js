@@ -12,6 +12,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { acceptMembershipRequest, rejectMembershipRequest } from '../lib/teamMembership';
 import FullscreenImageModal from '../components/FullscreenImageModal';
+import TimelineScreen from './TimelineScreen';
 
 const B      = '#1A2F6E';
 const R      = '#C01830';
@@ -64,7 +65,7 @@ function TeamLogoSmall({ uri, label }) {
   );
 }
 
-function GameScoreCard({ game, team }) {
+function GameScoreCard({ game, team, onPress }) {
   const homeName = game.is_home_game
     ? (team?.short_name ?? team?.name ?? 'Heim')
     : (game.away_team_name ?? 'Gast');
@@ -74,19 +75,20 @@ function GameScoreCard({ game, team }) {
 
   const homeScore = game.home_score ?? 0;
   const awayScore = game.away_score ?? 0;
-  const hasScore = game.status === 'live' || game.status === 'LIVE'
-    || game.status === 'finished' || game.status === 'FINISHED';
+  const statusNorm = (game.status ?? '').toLowerCase();
+  const hasScore = statusNorm === 'live' || statusNorm === 'finished';
   const homeWins = hasScore && homeScore > awayScore;
   const awayWins = hasScore && awayScore > homeScore;
+  const canOpenTimeline = hasScore && onPress;
 
   const dateStr = game.game_date
     ? new Date(game.game_date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : null;
-  const statusCfg = GAME_STATUS[game.status] ?? GAME_STATUS.scheduled;
+  const statusCfg = GAME_STATUS[game.status] ?? GAME_STATUS[statusNorm] ?? GAME_STATUS.scheduled;
   const headerLine = [dateStr, game.game_time ? `${game.game_time} Uhr` : null].filter(Boolean).join(' · ')
     || statusCfg.label;
 
-  return (
+  const card = (
     <View style={styles.scoreCard}>
       <Text style={styles.scoreLeague} numberOfLines={1}>{headerLine}</Text>
 
@@ -126,6 +128,9 @@ function GameScoreCard({ game, team }) {
 
       <View style={styles.scoreCardFooter}>
         <Text style={styles.scoreStatusTag}>{statusCfg.short}</Text>
+        {canOpenTimeline ? (
+          <Text style={styles.scoreTimelineLink}>SPIELVERLAUF ➔</Text>
+        ) : null}
       </View>
 
       {game.location ? (
@@ -136,6 +141,16 @@ function GameScoreCard({ game, team }) {
       ) : null}
     </View>
   );
+
+  if (canOpenTimeline) {
+    return (
+      <TouchableOpacity onPress={() => onPress(game)} activeOpacity={0.85}>
+        {card}
+      </TouchableOpacity>
+    );
+  }
+
+  return card;
 }
 
 function EditField({ label, value, onChangeText, placeholder, keyboardType = 'default', multiline = false }) {
@@ -172,6 +187,8 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
   const [leagues, setLeagues] = useState([]);
   const [leaguesLoading, setLeaguesLoading] = useState(false);
   const [leaguesError, setLeaguesError] = useState(null);
+  const [teamStats, setTeamStats] = useState(null);
+  const [timelineGameId, setTimelineGameId] = useState(null);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -222,7 +239,7 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
 
   const loadData = async () => {
     setLoading(true);
-    const [{ data: teamData }, { data: kaderData }, { data: gamesData }] = await Promise.all([
+    const [{ data: teamData }, { data: kaderData }, { data: gamesData }, { data: statsData }] = await Promise.all([
       supabase
         .from('teams')
         .select('id, name, short_name, town, founding_year, avatar_teamlogo, training_location, training_times, website, tel, email, instagram, primary_colour, secondary_colour, leagues_idleague, regions_idregion, leagues:leagues_idleague(id, name), regions:regions_idregion(id, name)')
@@ -237,10 +254,16 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
         .select('id, game_date, game_time, location, is_home_game, away_team_name, home_score, away_score, status')
         .eq('home_team_id', teamId)
         .order('game_date', { ascending: false }),
+      supabase
+        .from('team_stats')
+        .select('*')
+        .eq('team_id', teamId)
+        .maybeSingle(),
     ]);
     setTeam(teamData ?? null);
     setKader(kaderData ?? []);
     setGames(gamesData ?? []);
+    setTeamStats(statsData ?? null);
     setLoading(false);
   };
 
@@ -356,6 +379,15 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
       ],
     );
   };
+
+  if (timelineGameId) {
+    return (
+      <TimelineScreen
+        gameId={timelineGameId}
+        onBack={() => setTimelineGameId(null)}
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -508,6 +540,31 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
           )}
         </View>
 
+        {/* BILANZ */}
+        {!isEditing && teamStats && (teamStats.games_played > 0 || teamStats.wins > 0 || teamStats.losses > 0) && (
+          <>
+            <Text style={styles.sectionTitle}>BILANZ</Text>
+            <View style={styles.statsGrid}>
+              <View style={styles.statTile}>
+                <Text style={styles.statTileValue}>{teamStats.games_played ?? 0}</Text>
+                <Text style={styles.statTileLabel}>Spiele</Text>
+              </View>
+              <View style={styles.statTile}>
+                <Text style={[styles.statTileValue, { color: GREEN }]}>{teamStats.wins ?? 0}</Text>
+                <Text style={styles.statTileLabel}>Siege</Text>
+              </View>
+              <View style={styles.statTile}>
+                <Text style={[styles.statTileValue, { color: R }]}>{teamStats.losses ?? 0}</Text>
+                <Text style={styles.statTileLabel}>Niederlagen</Text>
+              </View>
+              <View style={styles.statTile}>
+                <Text style={styles.statTileValue}>{teamStats.ties ?? 0}</Text>
+                <Text style={styles.statTileLabel}>Unentsch.</Text>
+              </View>
+            </View>
+          </>
+        )}
+
         {/* SPIELE – Karussell */}
         {!isEditing && (
           <>
@@ -525,7 +582,12 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
                 contentContainerStyle={styles.gamesCarouselContent}
               >
                 {games.map((game) => (
-                  <GameScoreCard key={game.id} game={game} team={team} />
+                  <GameScoreCard
+                    key={game.id}
+                    game={game}
+                    team={team}
+                    onPress={(g) => setTimelineGameId(g.id)}
+                  />
                 ))}
                 <View style={{ width: 6 }} />
               </ScrollView>
@@ -1017,11 +1079,29 @@ const styles = StyleSheet.create({
   scoreWinnerName: { color: B, fontWeight: '800' },
   scoreWinnerScore: { color: R, fontWeight: '800', fontSize: 16 },
   scoreCardFooter: {
-    flexDirection: 'row', justifyContent: 'flex-end',
+    flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginTop: 10, paddingTop: 8,
     borderTopWidth: 1, borderTopColor: BORDER,
   },
   scoreStatusTag: { color: MUTED, fontSize: 9, fontWeight: '700' },
+  scoreTimelineLink: { color: R, fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 18,
+  },
+  statTile: {
+    width: '47%',
+    backgroundColor: BG,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 14,
+    alignItems: 'center',
+  },
+  statTileValue: { color: B, fontSize: 22, fontWeight: '900' },
+  statTileLabel: { color: MUTED, fontSize: 11, fontWeight: '700', marginTop: 4 },
   scoreLocationRow: {
     flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8,
   },

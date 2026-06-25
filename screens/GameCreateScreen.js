@@ -22,14 +22,14 @@
  *   ON public.games FOR SELECT USING (true);
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   SafeAreaView, StatusBar, ScrollView, ActivityIndicator,
-  Alert, Share, Platform, Modal,
+  Alert, Share, Platform, Modal, Image, KeyboardAvoidingView, Pressable,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { ArrowLeft, Calendar, MapPin, Users, Clock, Copy, Check } from 'lucide-react-native';
+import { ArrowLeft, Calendar, MapPin, Clock, Copy, Check, Search, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 
 const B      = '#1A2F6E';
@@ -69,6 +69,14 @@ export default function GameCreateScreen({ teamId, onBack }) {
   const [createdCode, setCreatedCode]   = useState(null);
   const [codeCopied, setCodeCopied]     = useState(false);
 
+  const [opponentFocused, setOpponentFocused]       = useState(false);
+  const [opponentSuggestions, setOpponentSuggestions] = useState([]);
+  const [isSearchingOpponent, setIsSearchingOpponent] = useState(false);
+  const [selectedOpponent, setSelectedOpponent]     = useState(null);
+  const opponentDebounceRef = useRef(null);
+  const opponentInputRef = useRef(null);
+  const selectingOpponentRef = useRef(false);
+
   const formatDate = (d) => {
     if (!d) return '';
     return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
@@ -88,6 +96,87 @@ export default function GameCreateScreen({ teamId, onBack }) {
     setForm(p => ({ ...p, [key]: val }));
     setErrors(p => ({ ...p, [key]: undefined }));
   };
+
+  useEffect(() => {
+    const q = form.away_team_name.trim();
+
+    if (q.length < 2) {
+      setOpponentSuggestions([]);
+      setIsSearchingOpponent(false);
+      return;
+    }
+
+    if (selectedOpponent && selectedOpponent.name === q) {
+      setOpponentSuggestions([]);
+      setIsSearchingOpponent(false);
+      return;
+    }
+
+    setIsSearchingOpponent(true);
+    if (opponentDebounceRef.current) clearTimeout(opponentDebounceRef.current);
+
+    opponentDebounceRef.current = setTimeout(async () => {
+      try {
+        const { data: teams } = await supabase
+          .from('teams')
+          .select('id, name, short_name, town, avatar_teamlogo, leagues(name, league_logo_url)')
+          .neq('id', teamId)
+          .or(`name.ilike.%${q}%,short_name.ilike.%${q}%,town.ilike.%${q}%`)
+          .limit(8);
+
+        setOpponentSuggestions((teams ?? []).map((t) => ({
+          id:       t.id,
+          name:     t.name,
+          meta:     [t.leagues?.name, t.town, t.short_name].filter(Boolean).join(' · '),
+          logoUrl:  t.avatar_teamlogo || t.leagues?.league_logo_url || null,
+          initials: (t.short_name || t.name || '?').slice(0, 2).toUpperCase(),
+        })));
+      } finally {
+        setIsSearchingOpponent(false);
+      }
+    }, 300);
+
+    return () => {
+      if (opponentDebounceRef.current) clearTimeout(opponentDebounceRef.current);
+    };
+  }, [form.away_team_name, teamId, selectedOpponent]);
+
+  const handleOpponentChange = (value) => {
+    set('away_team_name', value);
+    if (selectedOpponent && selectedOpponent.name !== value) {
+      setSelectedOpponent(null);
+    }
+  };
+
+  const selectOpponent = (team) => {
+    selectingOpponentRef.current = true;
+    set('away_team_name', team.name);
+    setSelectedOpponent(team);
+    setOpponentSuggestions([]);
+    setOpponentFocused(false);
+    opponentInputRef.current?.blur();
+  };
+
+  const handleOpponentBlur = () => {
+    setTimeout(() => {
+      if (selectingOpponentRef.current) {
+        selectingOpponentRef.current = false;
+        return;
+      }
+      setOpponentFocused(false);
+    }, 200);
+  };
+
+  const clearOpponent = () => {
+    set('away_team_name', '');
+    setSelectedOpponent(null);
+    setOpponentSuggestions([]);
+  };
+
+  const showOpponentDropdown =
+    opponentFocused &&
+    form.away_team_name.trim().length >= 2 &&
+    (isSearchingOpponent || opponentSuggestions.length > 0);
 
   const validate = () => {
     const e = {};
@@ -191,9 +280,14 @@ export default function GameCreateScreen({ teamId, onBack }) {
         <Text style={styles.backBtnText}>Zurück</Text>
       </TouchableOpacity>
 
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+      >
       <ScrollView
         contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerSection}>
@@ -229,17 +323,98 @@ export default function GameCreateScreen({ teamId, onBack }) {
         <View style={styles.card}>
           <View style={styles.fieldWrap}>
             <Text style={styles.fieldLabel}>GEGNER *</Text>
-            <View style={[styles.inputRow, !!errors.away_team_name && styles.inputRowError]}>
-              <Users size={17} color={MUTED} style={styles.inputIcon} />
+            <Pressable
+              style={[
+                styles.inputRow,
+                opponentFocused && styles.inputRowFocused,
+                !!errors.away_team_name && styles.inputRowError,
+              ]}
+              onPress={() => opponentInputRef.current?.focus()}
+            >
+              {selectedOpponent?.logoUrl ? (
+                <Image
+                  source={{ uri: selectedOpponent.logoUrl }}
+                  style={styles.opponentLogo}
+                  resizeMode="contain"
+                />
+              ) : selectedOpponent ? (
+                <View style={styles.opponentLogoPlaceholder}>
+                  <Text style={styles.opponentInitials}>{selectedOpponent.initials}</Text>
+                </View>
+              ) : (
+                <Search size={17} color={MUTED} style={styles.inputIcon} />
+              )}
               <TextInput
+                ref={opponentInputRef}
                 style={styles.inputField}
                 value={form.away_team_name}
-                onChangeText={(v) => set('away_team_name', v)}
-                placeholder="z. B. Munich Cowboys"
+                onChangeText={handleOpponentChange}
+                onFocus={() => setOpponentFocused(true)}
+                onBlur={handleOpponentBlur}
+                placeholder="Team suchen oder Name eingeben…"
                 placeholderTextColor="#9CA3AF"
+                autoCorrect={false}
+                returnKeyType="done"
               />
-            </View>
+              {isSearchingOpponent && !selectedOpponent ? (
+                <ActivityIndicator size="small" color={B} style={{ marginRight: 4 }} />
+              ) : null}
+              {form.away_team_name.length > 0 ? (
+                <TouchableOpacity
+                  onPress={(e) => {
+                    e.stopPropagation?.();
+                    clearOpponent();
+                    opponentInputRef.current?.focus();
+                  }}
+                  hitSlop={8}
+                >
+                  <X size={16} color={MUTED} />
+                </TouchableOpacity>
+              ) : null}
+            </Pressable>
             {!!errors.away_team_name && <Text style={styles.fieldError}>{errors.away_team_name}</Text>}
+
+            {showOpponentDropdown && (
+              <View style={styles.suggestionsBox}>
+                {isSearchingOpponent && opponentSuggestions.length === 0 ? (
+                  <View style={styles.suggestionEmpty}>
+                    <ActivityIndicator size="small" color={B} />
+                    <Text style={styles.suggestionEmptyText}>Teams werden gesucht…</Text>
+                  </View>
+                ) : opponentSuggestions.length === 0 ? (
+                  <View style={styles.suggestionEmpty}>
+                    <Text style={styles.suggestionEmptyText}>Kein Teamprofil gefunden</Text>
+                    <Text style={styles.suggestionEmptySub}>Freien Namen verwenden oder anders suchen</Text>
+                  </View>
+                ) : (
+                  opponentSuggestions.map((team, index) => (
+                    <TouchableOpacity
+                      key={team.id}
+                      style={[
+                        styles.suggestionRow,
+                        index < opponentSuggestions.length - 1 && styles.suggestionBorder,
+                      ]}
+                      onPress={() => selectOpponent(team)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.suggestionIcon}>
+                        {team.logoUrl ? (
+                          <Image source={{ uri: team.logoUrl }} style={styles.suggestionAvatar} resizeMode="contain" />
+                        ) : (
+                          <Text style={styles.suggestionInitials}>{team.initials}</Text>
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.suggestionName} numberOfLines={1}>{team.name}</Text>
+                        {!!team.meta && (
+                          <Text style={styles.suggestionMeta} numberOfLines={1}>{team.meta}</Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </View>
+            )}
           </View>
 
           {/* DATUM */}
@@ -393,6 +568,7 @@ export default function GameCreateScreen({ teamId, onBack }) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -446,10 +622,73 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF', borderRadius: 10,
     borderWidth: 1.5, borderColor: BORDER, paddingHorizontal: 10,
   },
+  inputRowFocused: {
+    borderColor: B,
+    shadowColor: B,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
   inputRowPressable: { cursor: 'pointer' },
   inputRowError: { borderColor: R },
   inputIcon:     { marginRight: 8 },
   inputField:    { flex: 1, color: B, fontSize: 14, paddingVertical: 12 },
+
+  opponentLogo: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  opponentLogoPlaceholder: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  opponentInitials: { color: B, fontSize: 10, fontWeight: '800' },
+
+  suggestionsBox: {
+    marginTop: 6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    overflow: 'hidden',
+  },
+  suggestionEmpty: {
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    gap: 6,
+  },
+  suggestionEmptyText: { color: B, fontSize: 13, fontWeight: '600' },
+  suggestionEmptySub: { color: MUTED, fontSize: 11, textAlign: 'center' },
+  suggestionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  suggestionBorder: { borderBottomWidth: 1, borderBottomColor: BG },
+  suggestionIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  suggestionAvatar: { width: 38, height: 38, borderRadius: 10 },
+  suggestionInitials: { color: B, fontSize: 12, fontWeight: '800' },
+  suggestionName: { color: B, fontSize: 14, fontWeight: '700' },
+  suggestionMeta: { color: MUTED, fontSize: 11, marginTop: 1 },
 
   pickerModal: {
     flex: 1, justifyContent: 'flex-end',

@@ -452,7 +452,7 @@ export default function App() {
 
       {/* DYNAMISCHER INHALT JE NACH AKTIVEM TAB ODER AUSGEWÄHLTEM SPIEL */}
 {selectedGame ? (
-  <TimelineScreen onBack={() => setSelectedGame(null)} />
+  <TimelineScreen gameId={selectedGame.id} onBack={() => setSelectedGame(null)} />
 ) : (
   renderContent()
 )}

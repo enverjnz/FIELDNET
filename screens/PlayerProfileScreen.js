@@ -32,7 +32,7 @@ const BORDER = '#D1D8F0';
 const MUTED = '#6B7280';
 
 function StatCard({ icon, label, value }) {
-  if (!value) return null;
+  if (value == null || value === '') return null;
   return (
     <View style={styles.statCard}>
       <View style={styles.statIcon}>{icon}</View>
@@ -42,9 +42,19 @@ function StatCard({ icon, label, value }) {
   );
 }
 
+function StatNumCard({ label, value }) {
+  return (
+    <View style={styles.statCard}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>{value ?? 0}</Text>
+    </View>
+  );
+}
+
 export default function PlayerProfileScreen({ profileId, onBack }) {
   const [profile, setProfile] = useState(null);
   const [teams, setTeams] = useState([]);
+  const [playerStats, setPlayerStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fullscreenImage, setFullscreenImage] = useState(null);
 
@@ -53,7 +63,7 @@ export default function PlayerProfileScreen({ profileId, onBack }) {
 
     (async () => {
       setLoading(true);
-      const [{ data: prof }, { data: memberships }] = await Promise.all([
+      const [{ data: prof }, { data: memberships }, { data: stats }] = await Promise.all([
         supabase
           .from('profiles')
           .select('*')
@@ -64,11 +74,17 @@ export default function PlayerProfileScreen({ profileId, onBack }) {
           .select('status, teams(id, name, short_name, town, avatar_teamlogo)')
           .eq('player_id', profileId)
           .eq('status', 'approved'),
+        supabase
+          .from('profile_stats')
+          .select('*')
+          .eq('profile_id', profileId)
+          .maybeSingle(),
       ]);
 
       if (!cancelled) {
         setProfile(prof ?? null);
         setTeams((memberships ?? []).map((m) => m.teams).filter(Boolean));
+        setPlayerStats(stats ?? null);
         setLoading(false);
       }
     })();
@@ -157,6 +173,21 @@ export default function PlayerProfileScreen({ profileId, onBack }) {
                 </View>
               </View>
             ))}
+          </>
+        )}
+
+        {playerStats && (
+          <>
+            <Text style={styles.sectionTitle}>STATISTIKEN</Text>
+            <View style={styles.statsGrid}>
+              <StatNumCard label="Spiele" value={playerStats.games_played} />
+              <StatNumCard label="Touchdowns" value={playerStats.touchdowns} />
+              <StatNumCard label="Field Goals" value={playerStats.field_goals} />
+              <StatNumCard label="Extra Points" value={playerStats.extra_points} />
+              <StatNumCard label="2-PT Conv." value={playerStats.two_point_conversions} />
+              <StatNumCard label="Interceptions" value={playerStats.interceptions} />
+              <StatNumCard label="Sacks" value={playerStats.sacks} />
+            </View>
           </>
         )}
 

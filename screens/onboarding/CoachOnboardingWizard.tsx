@@ -18,6 +18,7 @@ import {
 import { ArrowLeft, ChevronRight, ChevronDown, X, Check } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
 import { linkInvoiceCodeToTeam } from '../../lib/invoiceCode';
+import { ensureTeamStatsForTeam } from '../../lib/finishGame';
 
 const B = '#1A2F6E';
 const R = '#C01830';
@@ -185,6 +186,7 @@ export default function CoachOnboardingWizard({ onBack, onSuccess, inviteCodeId 
 
       setPipelineStep('done');
       await linkInvoiceCodeToTeam(inviteCodeId, team.id);
+      await ensureTeamStatsForTeam(team.id);
       setTimeout(() => onSuccess(team.id), 400);
     } catch (e: any) {
       if (createdTeamId) {
