@@ -12,6 +12,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
 import TeamProfileScreen from './TeamProfileScreen';
+import FullscreenImageModal from '../components/FullscreenImageModal';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -82,7 +83,7 @@ function EditField({ label, value, onChangeText, placeholder, keyboardType, mult
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
-export default function ProfilScreen() {
+export default function ProfilScreen({ refreshKey = 0 }) {
   const [profile, setProfile]         = useState(null);
   const [email, setEmail]             = useState('');
   const [memberships, setMemberships] = useState([]);
@@ -101,14 +102,18 @@ export default function ProfilScreen() {
   const [joiningTeamId, setJoiningTeamId]     = useState(null);
   const [profileTeamId, setProfileTeamId]     = useState(null);
   const [teamProfileId, setTeamProfileId]     = useState(null);
+  const [fullscreenAvatar, setFullscreenAvatar] = useState(null);
   const searchRef = useRef(null);
   const debounceRef = useRef(null);
 
-  const fetchProfile = useCallback(async () => {
-    setLoading(true);
+  const fetchProfile = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const { data: { user }, error: authErr } = await supabase.auth.getUser();
-      if (authErr || !user) { setLoading(false); return; }
+      if (authErr || !user) {
+        if (!silent) setLoading(false);
+        return;
+      }
 
       setEmail(user.email ?? '');
 
@@ -125,7 +130,7 @@ export default function ProfilScreen() {
         .select('status, teams(id, name, avatar_teamlogo)')
         .eq('player_id', user.id);
 
-      if (mem) setMemberships(mem);
+      setMemberships(mem ?? []);
 
       const { data: managerRow } = await supabase
         .from('team_managers')
@@ -137,11 +142,15 @@ export default function ProfilScreen() {
     } catch (e) {
       console.warn('ProfilScreen fetch error:', e?.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
+
+  useEffect(() => {
+    if (refreshKey > 0) fetchProfile(true);
+  }, [refreshKey, fetchProfile]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -308,7 +317,7 @@ export default function ProfilScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.centered}>
-          <View style={styles.avatarPlaceholder}><User size={40} color="#1A2F6E" /></View>
+          <View style={styles.avatarPlaceholder}><User size={48} color="#1A2F6E" /></View>
           <Text style={styles.emptyTitle}>Kein Profil gefunden</Text>
           <Text style={styles.emptySubtitle}>Registriere dich, um dein Profil zu sehen.</Text>
         </View>
@@ -354,10 +363,16 @@ export default function ProfilScreen() {
               <Text style={styles.editBtnText}>Bearbeiten</Text>
             </TouchableOpacity>
 
-            {profile.avatar
-              ? <Image source={{ uri: profile.avatar }} style={styles.avatarImg} />
-              : <Initials firstName={profile.first_name} lastName={profile.last_name} />
-            }
+            {profile.avatar ? (
+              <TouchableOpacity
+                onPress={() => setFullscreenAvatar(profile.avatar)}
+                activeOpacity={0.85}
+              >
+                <Image source={{ uri: profile.avatar }} style={styles.avatarImg} />
+              </TouchableOpacity>
+            ) : (
+              <Initials firstName={profile.first_name} lastName={profile.last_name} />
+            )}
 
             <View style={styles.rolePill}>
               <Text style={styles.rolePillText}>
@@ -372,7 +387,7 @@ export default function ProfilScreen() {
           {/* TEAM */}
           <View style={styles.sectionRow}>
             <Text style={styles.sectionTitle}>TEAM</Text>
-            {profile.role !== 'coach' && (
+            {profile.role !== 'coach' && memberships.length === 0 && (
               <TouchableOpacity style={styles.joinBtn} onPress={openTeamSearch} activeOpacity={0.8}>
                 <UserPlus size={13} color={R} />
                 <Text style={styles.joinBtnText}>Team suchen</Text>
@@ -584,6 +599,11 @@ export default function ProfilScreen() {
 
           <View style={{ height: 40 }} />
         </ScrollView>
+
+        <FullscreenImageModal
+          uri={fullscreenAvatar}
+          onClose={() => setFullscreenAvatar(null)}
+        />
       </SafeAreaView>
     );
   }
@@ -607,15 +627,28 @@ export default function ProfilScreen() {
 
         {/* AVATAR */}
         <View style={styles.avatarEditWrap}>
-          <TouchableOpacity onPress={pickAvatar} activeOpacity={0.8} style={styles.avatarEditTouch}>
-            {draft.avatar
-              ? <Image source={{ uri: draft.avatar }} style={styles.avatarImg} />
-              : <Initials firstName={draft.first_name} lastName={draft.last_name} />
-            }
-            <View style={styles.avatarEditOverlay}>
-              <Camera size={20} color="#fff" />
-            </View>
-          </TouchableOpacity>
+          <View style={styles.avatarEditTouch}>
+            {draft.avatar ? (
+              <>
+                <TouchableOpacity
+                  onPress={() => setFullscreenAvatar(draft.avatar)}
+                  activeOpacity={0.85}
+                >
+                  <Image source={{ uri: draft.avatar }} style={styles.avatarImg} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={pickAvatar} style={styles.avatarEditOverlay} activeOpacity={0.8}>
+                  <Camera size={22} color="#fff" />
+                </TouchableOpacity>
+              </>
+            ) : (
+              <TouchableOpacity onPress={pickAvatar} activeOpacity={0.8}>
+                <Initials firstName={draft.first_name} lastName={draft.last_name} />
+                <View style={styles.avatarEditOverlay}>
+                  <Camera size={22} color="#fff" />
+                </View>
+              </TouchableOpacity>
+            )}
+          </View>
           <Text style={styles.avatarEditHint}>Foto ändern</Text>
         </View>
 
@@ -770,6 +803,11 @@ export default function ProfilScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <FullscreenImageModal
+        uri={fullscreenAvatar}
+        onClose={() => setFullscreenAvatar(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -798,15 +836,15 @@ const styles = StyleSheet.create({
   editBtnText: { color: B, fontSize: 12, fontWeight: '800' },
 
   avatarImg: {
-    width: 100, height: 100, borderRadius: 50,
+    width: 140, height: 140, borderRadius: 70,
     borderWidth: 3, borderColor: B, marginBottom: 12,
   },
   avatarPlaceholder: {
-    width: 100, height: 100, borderRadius: 50,
+    width: 140, height: 140, borderRadius: 70,
     backgroundColor: BG, borderWidth: 2, borderColor: BORDER,
     justifyContent: 'center', alignItems: 'center', marginBottom: 12,
   },
-  avatarInitials: { color: B, fontSize: 32, fontWeight: '900' },
+  avatarInitials: { color: B, fontSize: 42, fontWeight: '900' },
   rolePill: {
     backgroundColor: BG, borderRadius: 20,
     paddingHorizontal: 12, paddingVertical: 4,
@@ -944,8 +982,8 @@ const styles = StyleSheet.create({
   avatarEditWrap:  { alignItems: 'center', marginBottom: 28 },
   avatarEditTouch: { position: 'relative' },
   avatarEditOverlay: {
-    position: 'absolute', bottom: 0, right: 0,
-    width: 32, height: 32, borderRadius: 16,
+    position: 'absolute', bottom: 4, right: 4,
+    width: 38, height: 38, borderRadius: 19,
     backgroundColor: B, justifyContent: 'center', alignItems: 'center',
     borderWidth: 2, borderColor: '#FFFFFF',
   },

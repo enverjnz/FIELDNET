@@ -65,7 +65,7 @@ export default function Step2_BasicInfo({ data, update, onNext, onBack }: Props)
           <Image source={{ uri: data.avatarUri }} style={styles.avatar} />
         ) : (
           <View style={styles.avatarPlaceholder}>
-            <Camera size={28} color="#1A2F6E" />
+            <Camera size={32} color="#1A2F6E" />
             <Text style={styles.avatarHint}>Foto auswählen</Text>
           </View>
         )}
@@ -164,9 +164,9 @@ const styles = StyleSheet.create({
   title: { color: B, fontSize: 26, fontWeight: '800', marginBottom: 6 },
   subtitle: { color: '#6B7280', fontSize: 14, marginBottom: 24 },
   avatarWrap: { alignSelf: 'center', marginBottom: 28 },
-  avatar: { width: 100, height: 100, borderRadius: 50, borderWidth: 3, borderColor: B },
+  avatar: { width: 140, height: 140, borderRadius: 70, borderWidth: 3, borderColor: B },
   avatarPlaceholder: {
-    width: 100, height: 100, borderRadius: 50,
+    width: 140, height: 140, borderRadius: 70,
     backgroundColor: '#F0F4FF', borderWidth: 2, borderColor: '#D1D8F0',
     borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', gap: 4,
   },

@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
   },
   drawerHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingBottom: 20,

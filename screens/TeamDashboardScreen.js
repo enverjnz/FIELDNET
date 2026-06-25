@@ -4,7 +4,7 @@ import {
   SafeAreaView, StatusBar, ActivityIndicator,
   Image, ScrollView, RefreshControl, Alert,
 } from 'react-native';
-import { ArrowLeft, Users, Calendar, Zap, ChevronRight, MapPin, Hash, Copy, Check, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, Users, Calendar, Zap, ChevronRight, MapPin, Hash, Copy, Check, Trash2, UserMinus } from 'lucide-react-native';
 import { Clipboard } from 'react-native';
 import { supabase } from '../lib/supabase';
 import TeamProfileScreen from './TeamProfileScreen';
@@ -23,13 +23,14 @@ const STATUS_CONFIG = {
   cancelled: { label: 'Abgesagt',   color: R,         bg: '#FFF0F2' },
 };
 
-export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker }) {
+export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onTeamLeft }) {
   const [team, setTeam]             = useState(null);
   const [games, setGames]           = useState([]);
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [copiedCode, setCopiedCode] = useState(null);
   const [deletingGameId, setDeletingGameId] = useState(null);
+  const [leavingTeam, setLeavingTeam] = useState(false);
   const [activeScreen, setActiveScreen] = useState(null); // null | 'profile' | 'game'
 
   const onRefresh = async () => {
@@ -69,6 +70,50 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker }) {
               Alert.alert('Fehler', err?.message ?? 'Spiel konnte nicht gelöscht werden.');
             } finally {
               setDeletingGameId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const leaveTeam = () => {
+    const teamName = team?.name ?? 'dieses Team';
+    Alert.alert(
+      'Team verlassen',
+      `Möchtest du die Vereinsverwaltung für „${teamName}" wirklich verlassen? Du verlierst den Zugriff auf Kader und Spiele.`,
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Verlassen',
+          style: 'destructive',
+          onPress: async () => {
+            setLeavingTeam(true);
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) throw new Error('Nicht eingeloggt.');
+
+              const { error: managerError } = await supabase
+                .from('team_managers')
+                .delete()
+                .eq('profile_id', user.id)
+                .eq('team_id', teamId);
+
+              if (managerError) throw managerError;
+
+              await supabase
+                .from('team_memberships')
+                .delete()
+                .eq('player_id', user.id)
+                .eq('team_id', teamId);
+
+              Alert.alert('Erledigt', `Du hast ${teamName} verlassen.`);
+              onTeamLeft?.();
+              onBack();
+            } catch (err) {
+              Alert.alert('Fehler', err?.message ?? 'Team konnte nicht verlassen werden.');
+            } finally {
+              setLeavingTeam(false);
             }
           },
         },
@@ -324,7 +369,23 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker }) {
           })
         )}
 
-        <View style={{ height: 60 }} />
+        <TouchableOpacity
+          style={styles.leaveBtn}
+          onPress={leaveTeam}
+          activeOpacity={0.7}
+          disabled={leavingTeam}
+        >
+          {leavingTeam ? (
+            <ActivityIndicator size="small" color={MUTED} />
+          ) : (
+            <>
+              <UserMinus size={14} color={MUTED} />
+              <Text style={styles.leaveBtnText}>Team verlassen</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -345,16 +406,16 @@ const styles = StyleSheet.create({
     paddingVertical: 28,
   },
   teamLogo: {
-    width: 90, height: 90, borderRadius: 18, marginBottom: 14,
+    width: 120, height: 120, borderRadius: 24, marginBottom: 14,
     backgroundColor: BG,
   },
   teamLogoPlaceholder: {
-    width: 90, height: 90, borderRadius: 18, marginBottom: 14,
+    width: 120, height: 120, borderRadius: 24, marginBottom: 14,
     backgroundColor: B, justifyContent: 'center', alignItems: 'center',
     shadowColor: B, shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25, shadowRadius: 12, elevation: 8,
   },
-  teamLogoInitials: { color: '#FFFFFF', fontSize: 28, fontWeight: '900' },
+  teamLogoInitials: { color: '#FFFFFF', fontSize: 36, fontWeight: '900' },
   teamName: {
     color: B, fontSize: 24, fontWeight: '900', textAlign: 'center', marginBottom: 4,
   },
@@ -386,6 +447,12 @@ const styles = StyleSheet.create({
   actionText: { flex: 1 },
   actionTitle: { color: B, fontSize: 16, fontWeight: '800', marginBottom: 3 },
   actionSub:   { color: MUTED, fontSize: 12, lineHeight: 17 },
+
+  leaveBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 14, marginTop: 28,
+  },
+  leaveBtnText: { color: MUTED, fontSize: 13, fontWeight: '600' },
 
   gamesHeader: {
     flexDirection: 'row', justifyContent: 'space-between',

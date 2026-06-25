@@ -20,6 +20,7 @@ import TermineScreen from './screens/TermineScreen';
 import ChatScreen from './screens/ChatScreen.js';
 import SucheScreen from './screens/SucheScreen.js';
 import TickerScreen from './screens/TickerScreen';
+import TickerCodeScreen from './screens/TickerCodeScreen';
 import TimelineScreen from './screens/TimelineScreen.js';
 import ProfilScreen from './screens/ProfilScreen.js';
 import CoachOnboardingWizard from './screens/onboarding/CoachOnboardingWizard';
@@ -27,6 +28,8 @@ import TeamDashboardScreen from './screens/TeamDashboardScreen.js';
 import PlayerOnboardingFlow from './screens/onboarding/PlayerOnboardingFlow';
 import LandingScreen from './screens/auth/LandingScreen';
 import LoginScreen from './screens/auth/LoginScreen';
+import SettingsScreen from './screens/SettingsScreen';
+import DeleteProfileScreen from './screens/DeleteProfileScreen';
 import { supabase } from './lib/supabase';
 
 
@@ -45,6 +48,13 @@ export default function App() {
   const [userRole, setUserRole]                   = useState(null);
   const [authState, setAuthState]                 = useState('landing');
   const [authReady, setAuthReady]                 = useState(false);
+  const [showSettings, setShowSettings]           = useState(false);
+  const [showDeleteProfile, setShowDeleteProfile] = useState(false);
+  const [showTickerFlow, setShowTickerFlow]       = useState(false);
+  const [tickerGame, setTickerGame]               = useState(null);
+  const [profileRefreshKey, setProfileRefreshKey] = useState(0);
+
+  const bumpProfileRefresh = () => setProfileRefreshKey((k) => k + 1);
 
   useEffect(() => {
     const loadRole = async () => {
@@ -77,6 +87,32 @@ export default function App() {
   }, []);
 
 
+  const handleAccountDeleted = () => {
+    setShowDeleteProfile(false);
+    setShowSettings(false);
+    setIsMenuOpen(false);
+    setActiveTab(0);
+    setSelectedGame(null);
+    setShowTeamDashboard(false);
+    setShowTeamCreation(false);
+    setDashboardTeamId(null);
+    setUserRole(null);
+    setShowTickerFlow(false);
+    setTickerGame(null);
+    setAuthState('landing');
+  };
+
+  const openTickerFlow = () => {
+    setIsMenuOpen(false);
+    setShowTickerFlow(true);
+    setTickerGame(null);
+  };
+
+  const closeTickerFlow = () => {
+    setShowTickerFlow(false);
+    setTickerGame(null);
+  };
+
   const handleSignOut = () => {
     Alert.alert('Abmelden', 'Möchtest du dich wirklich abmelden?', [
       { text: 'Abbrechen', style: 'cancel' },
@@ -84,6 +120,8 @@ export default function App() {
         text: 'Abmelden', style: 'destructive',
         onPress: async () => {
           setIsMenuOpen(false);
+          setShowTickerFlow(false);
+          setTickerGame(null);
           await supabase.auth.signOut();
           setAuthState('landing');
         },
@@ -337,12 +375,8 @@ export default function App() {
         return <SucheScreen />;
 
       case 4:
-        return <ProfilScreen />;        
-  
-      case 5:
-        // Die TickerMaske wird nur noch geladen, wenn sie im Seitenmenü geklickt wird
-        return <TickerScreen />;
-        
+        return <ProfilScreen refreshKey={profileRefreshKey} />;
+
       default:
         return null;
     }
@@ -466,13 +500,57 @@ export default function App() {
         </View>
       </View>
 
+      {/* EINSTELLUNGEN */}
+      {showSettings && !showDeleteProfile && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#FFFFFF', zIndex: 200 }}>
+          <SettingsScreen
+            onBack={() => setShowSettings(false)}
+            onDeleteAccount={() => setShowDeleteProfile(true)}
+            onTeamLeft={bumpProfileRefresh}
+          />
+        </View>
+      )}
+
+      {/* KONTO LÖSCHEN */}
+      {showDeleteProfile && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#FFFFFF', zIndex: 210 }}>
+          <DeleteProfileScreen
+            onBack={() => setShowDeleteProfile(false)}
+            onDeleted={handleAccountDeleted}
+          />
+        </View>
+      )}
+
+      {/* LIVE-TICKER (Code-Gate → Ticker) */}
+      {showTickerFlow && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#FFFFFF', zIndex: 220 }}>
+          {tickerGame ? (
+            <TickerScreen
+              game={tickerGame}
+              onBack={() => setTickerGame(null)}
+              onExit={closeTickerFlow}
+            />
+          ) : (
+            <TickerCodeScreen
+              onBack={closeTickerFlow}
+              onSuccess={(game) => setTickerGame(game)}
+            />
+          )}
+        </View>
+      )}
+
       {/* VEREINSVERWALTUNG – DASHBOARD (Trainer mit Team) */}
       {showTeamDashboard && dashboardTeamId && (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#FFFFFF', zIndex: 200 }}>
           <TeamDashboardScreen
             teamId={dashboardTeamId}
             onBack={() => { setShowTeamDashboard(false); setDashboardTeamId(null); }}
-            onOpenTicker={() => { setShowTeamDashboard(false); setDashboardTeamId(null); setActiveTab(5); }}
+            onTeamLeft={bumpProfileRefresh}
+            onOpenTicker={() => {
+              setShowTeamDashboard(false);
+              setDashboardTeamId(null);
+              openTickerFlow();
+            }}
           />
         </View>
       )}
@@ -499,15 +577,6 @@ export default function App() {
           
           <View style={styles.drawerContainer}>
             <View style={styles.drawerHeader}>
-              <View style={styles.drawerUserSection}>
-                <View style={styles.drawerAvatar}>
-                  <User size={24} color="#FFFFFF" />
-                </View>
-                <View>
-                  <Text style={styles.drawerUserName}>Gast-Nutzer</Text>
-                  <Text style={styles.drawerUserEmail}>user@gridiron.de</Text>
-                </View>
-              </View>
               <TouchableOpacity onPress={() => setIsMenuOpen(false)} style={styles.drawerCloseButton}>
                 <X size={24} color="#1A2F6E" />
               </TouchableOpacity>
@@ -516,9 +585,9 @@ export default function App() {
             {/* Menüpunkte im Seitenmenü */}
             <ScrollView style={styles.drawerMenuScroll} showsVerticalScrollIndicator={false}>
               {[
-                { label: 'Live-Ticker starten', icon: <PlusCircle size={20} color="#C01830" />, action: () => setActiveTab(5) },
+                { label: 'Live-Ticker starten', icon: <PlusCircle size={20} color="#C01830" />, action: openTickerFlow },
                 userRole === 'coach' ? { label: 'Vereinsverwaltung', icon: <Trophy size={20} color="#1A2F6E" />, action: handleVerwaltung } : null,
-                { label: 'Einstellungen', icon: <LayoutGrid size={20} color="#1A2F6E" /> },
+                { label: 'Einstellungen', icon: <LayoutGrid size={20} color="#1A2F6E" />, action: () => setShowSettings(true) },
                 { label: 'Feedback geben', icon: <MessageSquare size={20} color="#1A2F6E" /> },
                 { label: 'Problem melden', icon: <Bell size={20} color="#1A2F6E" /> },
                 { label: 'Über Fieldnet', icon: <Trophy size={20} color="#1A2F6E" /> },

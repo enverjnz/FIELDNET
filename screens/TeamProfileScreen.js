@@ -7,9 +7,10 @@ import {
 import {
   ArrowLeft, Edit2, Save, X, Users, Phone,
   Mail, Globe, Instagram, MapPin, Clock, Trophy,
-  Check, Trash2, ChevronDown,
+  Check, Trash2, ChevronDown, Calendar,
 } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
+import FullscreenImageModal from '../components/FullscreenImageModal';
 
 const B      = '#1A2F6E';
 const R      = '#C01830';
@@ -26,6 +27,115 @@ const STATUS_LABELS = {
   coach_pending: { label: 'Trainer',     color: B         },
   declined:      { label: 'Abgelehnt',   color: '#EF4444' },
 };
+
+const GAME_STATUS = {
+  scheduled: { label: 'GEPLANT',  short: '–' },
+  SCHEDULED: { label: 'GEPLANT',  short: '–' },
+  live:      { label: 'LIVE',     short: 'LIVE' },
+  LIVE:      { label: 'LIVE',     short: 'LIVE' },
+  finished:  { label: 'BEENDET',  short: 'FT' },
+  FINISHED:  { label: 'BEENDET',  short: 'FT' },
+  cancelled: { label: 'ABGESAGT', short: '–' },
+  CANCELLED: { label: 'ABGESAGT', short: '–' },
+};
+
+function InfoRow({ icon, label, value }) {
+  if (!value) return null;
+  return (
+    <View style={styles.infoRow}>
+      <View style={styles.infoIcon}>{icon}</View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.infoLabel}>{label}</Text>
+        <Text style={styles.infoValue}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
+function TeamLogoSmall({ uri, label }) {
+  if (uri) {
+    return <Image source={{ uri }} style={styles.scoreTeamLogo} resizeMode="contain" />;
+  }
+  return (
+    <View style={styles.scoreTeamLogoPlaceholder}>
+      <Text style={styles.scoreTeamLogoText}>{(label ?? '?').slice(0, 1).toUpperCase()}</Text>
+    </View>
+  );
+}
+
+function GameScoreCard({ game, team }) {
+  const homeName = game.is_home_game
+    ? (team?.short_name ?? team?.name ?? 'Heim')
+    : (game.away_team_name ?? 'Gast');
+  const awayName = game.is_home_game
+    ? (game.away_team_name ?? 'Gast')
+    : (team?.short_name ?? team?.name ?? 'Heim');
+
+  const homeScore = game.home_score ?? 0;
+  const awayScore = game.away_score ?? 0;
+  const hasScore = game.status === 'live' || game.status === 'LIVE'
+    || game.status === 'finished' || game.status === 'FINISHED';
+  const homeWins = hasScore && homeScore > awayScore;
+  const awayWins = hasScore && awayScore > homeScore;
+
+  const dateStr = game.game_date
+    ? new Date(game.game_date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : null;
+  const statusCfg = GAME_STATUS[game.status] ?? GAME_STATUS.scheduled;
+  const headerLine = [dateStr, game.game_time ? `${game.game_time} Uhr` : null].filter(Boolean).join(' · ')
+    || statusCfg.label;
+
+  return (
+    <View style={styles.scoreCard}>
+      <Text style={styles.scoreLeague} numberOfLines={1}>{headerLine}</Text>
+
+      <View style={styles.scoreRow}>
+        <View style={styles.scoreTeamContainer}>
+          <TeamLogoSmall
+            uri={game.is_home_game ? team?.avatar_teamlogo : null}
+            label={homeName}
+          />
+          <Text style={[styles.scoreTeamName, homeWins && styles.scoreWinnerName]} numberOfLines={1}>
+            {homeName}
+          </Text>
+        </View>
+        {hasScore ? (
+          <Text style={[styles.scoreTeamScore, homeWins && styles.scoreWinnerScore]}>
+            {String(homeScore).padStart(2, '0')}
+          </Text>
+        ) : null}
+      </View>
+
+      <View style={styles.scoreRow}>
+        <View style={styles.scoreTeamContainer}>
+          <TeamLogoSmall
+            uri={!game.is_home_game ? team?.avatar_teamlogo : null}
+            label={awayName}
+          />
+          <Text style={[styles.scoreTeamName, awayWins && styles.scoreWinnerName]} numberOfLines={1}>
+            {awayName}
+          </Text>
+        </View>
+        {hasScore ? (
+          <Text style={[styles.scoreTeamScore, awayWins && styles.scoreWinnerScore]}>
+            {String(awayScore).padStart(2, '0')}
+          </Text>
+        ) : null}
+      </View>
+
+      <View style={styles.scoreCardFooter}>
+        <Text style={styles.scoreStatusTag}>{statusCfg.short}</Text>
+      </View>
+
+      {game.location ? (
+        <View style={styles.scoreLocationRow}>
+          <MapPin size={11} color={MUTED} />
+          <Text style={styles.scoreLocationText} numberOfLines={1}>{game.location}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 function EditField({ label, value, onChangeText, placeholder, keyboardType = 'default', multiline = false }) {
   return (
@@ -50,12 +160,14 @@ function EditField({ label, value, onChangeText, placeholder, keyboardType = 'de
 export default function TeamProfileScreen({ teamId, onBack, readOnly = false, onRequestJoin }) {
   const [team, setTeam]       = useState(null);
   const [kader, setKader]     = useState([]);
+  const [games, setGames]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving]   = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft]     = useState({});
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [fullscreenImage, setFullscreenImage] = useState(null);
   const [leagues, setLeagues] = useState([]);
   const [leaguesLoading, setLeaguesLoading] = useState(false);
   const [leaguesError, setLeaguesError] = useState(null);
@@ -109,7 +221,7 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
 
   const loadData = async () => {
     setLoading(true);
-    const [{ data: teamData }, { data: kaderData }] = await Promise.all([
+    const [{ data: teamData }, { data: kaderData }, { data: gamesData }] = await Promise.all([
       supabase
         .from('teams')
         .select('id, name, short_name, town, founding_year, avatar_teamlogo, training_location, training_times, website, tel, email, instagram, primary_colour, secondary_colour, leagues_idleague, regions_idregion, leagues:leagues_idleague(id, name), regions:regions_idregion(id, name)')
@@ -119,9 +231,15 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
         .from('team_memberships')
         .select('id, status, player_id, profiles(id, first_name, last_name, position, jersey_number, avatar, age, nationality)')
         .eq('team_id', teamId),
+      supabase
+        .from('games')
+        .select('id, game_date, game_time, location, is_home_game, away_team_name, home_score, away_score, status')
+        .eq('home_team_id', teamId)
+        .order('game_date', { ascending: false }),
     ]);
     setTeam(teamData ?? null);
     setKader(kaderData ?? []);
+    setGames(gamesData ?? []);
     setLoading(false);
   };
 
@@ -267,14 +385,22 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
         {/* TEAM LOGO */}
         <View style={styles.logoSection}>
           {(isEditing ? draft.avatar_teamlogo : team?.avatar_teamlogo) ? (
-            <Image
-              source={{ uri: isEditing ? draft.avatar_teamlogo : team.avatar_teamlogo }}
-              style={styles.teamLogo}
-              resizeMode="contain"
-            />
+            <TouchableOpacity
+              onPress={() => {
+                const uri = isEditing ? draft.avatar_teamlogo : team?.avatar_teamlogo;
+                if (uri) setFullscreenImage(uri);
+              }}
+              activeOpacity={0.85}
+            >
+              <Image
+                source={{ uri: isEditing ? draft.avatar_teamlogo : team.avatar_teamlogo }}
+                style={styles.teamLogo}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
           ) : (
             <View style={styles.teamLogoPlaceholder}>
-              <Trophy size={36} color="#FFFFFF" />
+              <Trophy size={44} color="#FFFFFF" />
             </View>
           )}
           {isEditing && (
@@ -357,6 +483,31 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
           )}
         </View>
 
+        {/* SPIELE – Karussell */}
+        {!isEditing && (
+          <>
+            <Text style={[styles.sectionTitle, { marginTop: 6 }]}>SPIELE</Text>
+            {games.length === 0 ? (
+              <View style={styles.emptyGames}>
+                <Calendar size={28} color={MUTED} />
+                <Text style={styles.emptyGamesText}>Noch keine Spiele erstellt</Text>
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.gamesCarousel}
+                contentContainerStyle={styles.gamesCarouselContent}
+              >
+                {games.map((game) => (
+                  <GameScoreCard key={game.id} game={game} team={team} />
+                ))}
+                <View style={{ width: 6 }} />
+              </ScrollView>
+            )}
+          </>
+        )}
+
         {/* KADER */}
         <View style={styles.kaderHeader}>
           <Text style={styles.sectionTitle}>KADER</Text>
@@ -380,17 +531,23 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
             const status = STATUS_LABELS[member.status] ?? { label: member.status, color: MUTED };
             return (
               <View key={member.id} style={styles.playerRow}>
-                {/* Avatar — klickbar */}
-                <TouchableOpacity onPress={() => setSelectedPlayer({ ...p, name, status: member.status })} activeOpacity={0.75}>
-                  {p?.avatar
-                    ? <Image source={{ uri: p.avatar }} style={styles.playerAvatarImg} />
-                    : (
-                      <View style={styles.playerAvatar}>
-                        <Text style={styles.playerAvatarText}>{initials}</Text>
-                      </View>
-                    )
-                  }
-                </TouchableOpacity>
+                {p?.avatar ? (
+                  <TouchableOpacity
+                    onPress={() => setFullscreenImage(p.avatar)}
+                    activeOpacity={0.85}
+                  >
+                    <Image source={{ uri: p.avatar }} style={styles.playerAvatarImg} />
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => setSelectedPlayer({ ...p, name, status: member.status })}
+                    activeOpacity={0.75}
+                  >
+                    <View style={styles.playerAvatar}>
+                      <Text style={styles.playerAvatarText}>{initials}</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
 
                 {/* Name + Meta — klickbar */}
                 <TouchableOpacity style={styles.playerInfo} onPress={() => setSelectedPlayer({ ...p, name, status: member.status })} activeOpacity={0.75}>
@@ -461,16 +618,20 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
             <ScrollView contentContainerStyle={styles.modalScroll} showsVerticalScrollIndicator={false}>
               {/* Avatar */}
               <View style={styles.modalAvatarWrap}>
-                {selectedPlayer.avatar
-                  ? <Image source={{ uri: selectedPlayer.avatar }} style={styles.modalAvatarImg} />
-                  : (
-                    <View style={styles.modalAvatarPlaceholder}>
-                      <Text style={styles.modalAvatarInitials}>
-                        {selectedPlayer.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                      </Text>
-                    </View>
-                  )
-                }
+                {selectedPlayer.avatar ? (
+                  <TouchableOpacity
+                    onPress={() => setFullscreenImage(selectedPlayer.avatar)}
+                    activeOpacity={0.85}
+                  >
+                    <Image source={{ uri: selectedPlayer.avatar }} style={styles.modalAvatarImg} />
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.modalAvatarPlaceholder}>
+                    <Text style={styles.modalAvatarInitials}>
+                      {selectedPlayer.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
                 <Text style={styles.modalName}>{selectedPlayer.name}</Text>
                 {selectedPlayer.position && (
                   <View style={styles.modalPosPill}>
@@ -510,6 +671,11 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
           </SafeAreaView>
         )}
       </Modal>
+
+      <FullscreenImageModal
+        uri={fullscreenImage}
+        onClose={() => setFullscreenImage(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -577,21 +743,6 @@ function LeagueSelect({ value, onChange, options, loading, error }) {
   );
 }
 
-// ─── Info Row (View mode) ─────────────────────────────────────────────────────
-
-function InfoRow({ icon, label, value }) {
-  if (!value) return null;
-  return (
-    <View style={styles.infoRow}>
-      <View style={styles.infoIcon}>{icon}</View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.infoLabel}>{label}</Text>
-        <Text style={styles.infoValue}>{value}</Text>
-      </View>
-    </View>
-  );
-}
-
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -622,9 +773,9 @@ const styles = StyleSheet.create({
   saveBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
 
   logoSection:       { alignItems: 'center', paddingVertical: 20 },
-  teamLogo:          { width: 90, height: 90, borderRadius: 18, marginBottom: 8, backgroundColor: BG },
+  teamLogo:          { width: 120, height: 120, borderRadius: 24, marginBottom: 8, backgroundColor: BG },
   teamLogoPlaceholder: {
-    width: 90, height: 90, borderRadius: 18, marginBottom: 8,
+    width: 120, height: 120, borderRadius: 24, marginBottom: 8,
     backgroundColor: B, justifyContent: 'center', alignItems: 'center',
   },
 
@@ -710,11 +861,11 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: BORDER,
   },
   playerAvatar: {
-    width: 42, height: 42, borderRadius: 21,
+    width: 56, height: 56, borderRadius: 28,
     backgroundColor: B, justifyContent: 'center', alignItems: 'center',
   },
-  playerAvatarImg: { width: 42, height: 42, borderRadius: 21 },
-  playerAvatarText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+  playerAvatarImg: { width: 56, height: 56, borderRadius: 28 },
+  playerAvatarText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
   playerInfo:  { flex: 1 },
   playerName:  { color: B, fontSize: 14, fontWeight: '700' },
   playerMeta:  { color: MUTED, fontSize: 11, marginTop: 2 },
@@ -743,15 +894,15 @@ const styles = StyleSheet.create({
 
   modalAvatarWrap: { alignItems: 'center', paddingVertical: 28 },
   modalAvatarImg: {
-    width: 96, height: 96, borderRadius: 48,
+    width: 128, height: 128, borderRadius: 64,
     borderWidth: 3, borderColor: B, marginBottom: 12,
   },
   modalAvatarPlaceholder: {
-    width: 96, height: 96, borderRadius: 48,
+    width: 128, height: 128, borderRadius: 64,
     backgroundColor: B, justifyContent: 'center', alignItems: 'center',
     marginBottom: 12,
   },
-  modalAvatarInitials: { color: '#FFFFFF', fontSize: 32, fontWeight: '900' },
+  modalAvatarInitials: { color: '#FFFFFF', fontSize: 42, fontWeight: '900' },
   modalName: { color: B, fontSize: 22, fontWeight: '900', marginBottom: 8 },
   modalPosPill: {
     backgroundColor: BG, borderRadius: 20,
@@ -774,4 +925,65 @@ const styles = StyleSheet.create({
     backgroundColor: R, borderRadius: 14, paddingVertical: 16, marginTop: 8,
   },
   joinBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+
+  emptyGames: {
+    alignItems: 'center', paddingVertical: 28, gap: 10,
+    backgroundColor: BG, borderRadius: 16,
+    borderWidth: 1, borderColor: BORDER, marginBottom: 18,
+  },
+  emptyGamesText: { color: MUTED, fontSize: 13 },
+
+  gamesCarousel: { marginHorizontal: -20, marginBottom: 18 },
+  gamesCarouselContent: { paddingHorizontal: 20 },
+
+  scoreCard: {
+    backgroundColor: '#FFFFFF',
+    borderColor: BORDER,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    width: 240,
+    marginRight: 14,
+    shadowColor: B,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  scoreLeague: {
+    color: MUTED, fontSize: 10, fontWeight: '800',
+    letterSpacing: 0.8, marginBottom: 12,
+  },
+  scoreRow: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 6,
+  },
+  scoreTeamContainer: {
+    flexDirection: 'row', alignItems: 'center',
+    flex: 1, marginRight: 8,
+  },
+  scoreTeamLogo: {
+    width: 24, height: 24, borderRadius: 12,
+    marginRight: 10, backgroundColor: BG,
+  },
+  scoreTeamLogoPlaceholder: {
+    width: 24, height: 24, borderRadius: 12,
+    marginRight: 10, backgroundColor: B,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  scoreTeamLogoText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  scoreTeamName: { color: MUTED, fontSize: 14, fontWeight: '600', flex: 1 },
+  scoreTeamScore: { color: MUTED, fontSize: 15, fontWeight: '600' },
+  scoreWinnerName: { color: B, fontWeight: '800' },
+  scoreWinnerScore: { color: R, fontWeight: '800', fontSize: 16 },
+  scoreCardFooter: {
+    flexDirection: 'row', justifyContent: 'flex-end',
+    alignItems: 'center', marginTop: 10, paddingTop: 8,
+    borderTopWidth: 1, borderTopColor: BORDER,
+  },
+  scoreStatusTag: { color: MUTED, fontSize: 9, fontWeight: '700' },
+  scoreLocationRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8,
+  },
+  scoreLocationText: { color: MUTED, fontSize: 11, flex: 1 },
 });
