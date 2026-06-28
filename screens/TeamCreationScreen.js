@@ -1,18 +1,65 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
+  View, Text, TextInput, TouchableOpacity, Pressable,
   StyleSheet, SafeAreaView, StatusBar, ScrollView,
   ActivityIndicator, Alert, Linking, Image,
+  KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
 import {
   Trophy, Hash, Search, Check, X,
-  ExternalLink, ArrowLeft, Users,
+  ExternalLink, ArrowLeft, Users, Camera, MapPin, Clock,
 } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
+import { searchTeams, teamSearchMeta, teamSearchLogoUrl } from '../lib/teamSearch';
+import { resolveTeamLogoUrl } from '../lib/uploadImage';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SUPPORT_URL = 'https://www.instagram.com/fieldnet.de/';
+
+const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+
+const COLOR_PRESETS = [
+  { label: 'FIELDNET Blau', value: '#1A2F6E' },
+  { label: 'FIELDNET Rot', value: '#C01830' },
+  { label: 'Schwarz', value: '#111827' },
+  { label: 'Weiß', value: '#FFFFFF' },
+  { label: 'Grün', value: '#059669' },
+  { label: 'Gold', value: '#D97706' },
+];
+
+function formatTrainingTimes(days, start, end) {
+  if (!days.length && !start.trim()) return null;
+  const dayPart = days.join(' & ');
+  const timePart = start.trim()
+    ? (end.trim() ? `${start.trim()}–${end.trim()} Uhr` : `${start.trim()} Uhr`)
+    : '';
+  return [dayPart, timePart].filter(Boolean).join(' · ') || null;
+}
+
+function normalizeHex(value) {
+  const v = value.trim();
+  if (!v) return '';
+  return v.startsWith('#') ? v : `#${v}`;
+}
+
+function isValidHex(value) {
+  if (!value.trim()) return true;
+  return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(normalizeHex(value));
+}
+
+function resetTeamDetails(setters) {
+  setters.setAvatarUri(null);
+  setters.setPrimaryColour('#1A2F6E');
+  setters.setSecondaryColour('#C01830');
+  setters.setFoundingYear('');
+  setters.setTrainingLocation('');
+  setters.setTrainingDays([]);
+  setters.setTrainingStart('');
+  setters.setTrainingEnd('');
+  setters.setExistingTrainingTimes?.(null);
+}
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
@@ -29,40 +76,93 @@ export default function TeamCreationScreen({ onSuccess, onBack }) {
   // ── Invite code ──────────────────────────────────────────────────────────────
   const [inviteCode, setInviteCode] = useState('');
 
+  // ── Team details ─────────────────────────────────────────────────────────────
+  const [avatarUri, setAvatarUri]               = useState(null);
+  const [primaryColour, setPrimaryColour]     = useState('#1A2F6E');
+  const [secondaryColour, setSecondaryColour]   = useState('#C01830');
+  const [foundingYear, setFoundingYear]         = useState('');
+  const [trainingLocation, setTrainingLocation] = useState('');
+  const [trainingDays, setTrainingDays]         = useState([]);
+  const [trainingStart, setTrainingStart]       = useState('');
+  const [trainingEnd, setTrainingEnd]           = useState('');
+  const [existingTrainingTimes, setExistingTrainingTimes] = useState(null);
+
   // ── UI state ─────────────────────────────────────────────────────────────────
   const [errors, setErrors]             = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const teamInputRef = useRef(null);
 
   // ── Team search handler ──────────────────────────────────────────────────────
-  const searchTeams = async (text) => {
+  const searchTeamsHandler = async (text) => {
     setQuery(text);
     if (text.trim().length < 2) { setResults([]); return; }
 
     setIsSearching(true);
     setSearchError(null);
-    try {
-      const { data, error } = await supabase
-        .from('teams')
-        .select('id, name, town, leagues(name, logo_url)')
-        .ilike('name', `%${text.trim()}%`)
-        .limit(12);
-      if (error) throw error;
-      setResults(data ?? []);
-    } catch (e) {
-      setSearchError('Suche fehlgeschlagen. Bitte versuche es erneut.');
-    } finally {
-      setIsSearching(false);
+    const { teams, error } = await searchTeams(text.trim(), 12);
+    if (error) {
+      setSearchError(error);
+      setResults([]);
+    } else {
+      setResults(teams);
     }
+    setIsSearching(false);
   };
 
-  const selectTeam = (team) => {
+  const selectTeam = async (team) => {
     setSelectedTeamId(team.id);
     setSelectedTeamName(team.name);
     setSelectedTeamTown(team.town);
     setQuery(team.name);
     setResults([]);
     setErrors((prev) => ({ ...prev, selectedTeam: undefined }));
+
+    const { data: fullTeam } = await supabase
+      .from('teams')
+      .select('avatar_teamlogo, primary_colour, secondary_colour, founding_year, training_location, training_times')
+      .eq('id', team.id)
+      .maybeSingle();
+
+    if (fullTeam) {
+      setAvatarUri(fullTeam.avatar_teamlogo ?? null);
+      setPrimaryColour(fullTeam.primary_colour || '#1A2F6E');
+      setSecondaryColour(fullTeam.secondary_colour || '#C01830');
+      setFoundingYear(fullTeam.founding_year ? String(fullTeam.founding_year) : '');
+      setTrainingLocation(fullTeam.training_location ?? '');
+      setTrainingDays([]);
+      setTrainingStart('');
+      setTrainingEnd('');
+      setExistingTrainingTimes(fullTeam.training_times ?? null);
+    }
   };
+
+  const pickLogo = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Berechtigung fehlt', 'Bitte erlaube den Zugriff auf deine Fotos.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      setAvatarUri(result.assets[0].uri);
+    }
+  };
+
+  const toggleTrainingDay = (day) => {
+    setExistingTrainingTimes(null);
+    setTrainingDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
+    );
+  };
+
+  const trainingPreview = formatTrainingTimes(trainingDays, trainingStart, trainingEnd)
+    || existingTrainingTimes
+    || null;
 
   const clearTeam = () => {
     setSelectedTeamId(null);
@@ -70,6 +170,23 @@ export default function TeamCreationScreen({ onSuccess, onBack }) {
     setSelectedTeamTown(null);
     setQuery('');
     setResults([]);
+    resetTeamDetails({
+      setAvatarUri, setPrimaryColour, setSecondaryColour, setFoundingYear,
+      setTrainingLocation, setTrainingDays, setTrainingStart, setTrainingEnd,
+      setExistingTrainingTimes,
+    });
+    teamInputRef.current?.focus();
+  };
+
+  const clearQuery = () => {
+    if (selectedTeamId) {
+      clearTeam();
+      return;
+    }
+    setQuery('');
+    setResults([]);
+    setSearchError(null);
+    teamInputRef.current?.focus();
   };
 
   // ── Validation ───────────────────────────────────────────────────────────────
@@ -77,6 +194,11 @@ export default function TeamCreationScreen({ onSuccess, onBack }) {
     const e = {};
     if (!selectedTeamId)    e.selectedTeam = 'Bitte ein Team auswählen.';
     if (!inviteCode.trim()) e.inviteCode   = 'Einladungscode ist Pflicht.';
+    if (!isValidHex(primaryColour))   e.primaryColour   = 'Ungültiger Hex-Farbcode.';
+    if (!isValidHex(secondaryColour)) e.secondaryColour = 'Ungültiger Hex-Farbcode.';
+    if (foundingYear.trim() && Number.isNaN(parseInt(foundingYear, 10))) {
+      e.foundingYear = 'Bitte eine gültige Jahreszahl eingeben.';
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -101,11 +223,31 @@ export default function TeamCreationScreen({ onSuccess, onBack }) {
       if (!codeRow)         throw new Error('Code ungültig oder bereits vergeben.');
       if (codeRow.is_used)  throw new Error('Code ungültig oder bereits vergeben.');
 
-      // ── Step 2: Manager verknüpfen ───────────────────────────────────────────
+      const hasStructuredTraining = trainingDays.length > 0 || trainingStart.trim() || trainingEnd.trim();
+      const trainingTimes = hasStructuredTraining
+        ? formatTrainingTimes(trainingDays, trainingStart, trainingEnd)
+        : (existingTrainingTimes || null);
+
+      // ── Step 2: Manager verknüpfen (vor Logo-Upload wegen Storage-RLS) ───────
       const { error: managerErr } = await supabase
         .from('team_managers')
         .insert({ profile_id: user.id, team_id: selectedTeamId });
       if (managerErr) throw managerErr;
+
+      const logoUrl = await resolveTeamLogoUrl(selectedTeamId, avatarUri);
+
+      const { error: teamUpdateErr } = await supabase
+        .from('teams')
+        .update({
+          avatar_teamlogo:   logoUrl,
+          primary_colour:    normalizeHex(primaryColour) || null,
+          secondary_colour:  normalizeHex(secondaryColour) || null,
+          founding_year:     foundingYear.trim() ? parseInt(foundingYear, 10) : null,
+          training_location: trainingLocation.trim() || null,
+          training_times:    trainingTimes,
+        })
+        .eq('id', selectedTeamId);
+      if (teamUpdateErr) throw teamUpdateErr;
 
       // ── Step 3: Code entwerten ───────────────────────────────────────────────
       const { error: codeUpdateErr } = await supabase
@@ -142,9 +284,15 @@ export default function TeamCreationScreen({ onSuccess, onBack }) {
         <Text style={styles.backBtnText}>Zurück</Text>
       </TouchableOpacity>
 
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+      >
+      <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
       <ScrollView
         contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
         showsVerticalScrollIndicator={false}
       >
         {/* ── HEADER ─────────────────────────────────────────────────── */}
@@ -168,26 +316,40 @@ export default function TeamCreationScreen({ onSuccess, onBack }) {
           {/* Search input */}
           <View style={styles.fieldWrap}>
             <Text style={styles.fieldLabel}>TEAMNAME *</Text>
-            <View style={[
-              styles.searchRow,
-              !!errors.selectedTeam && !selectedTeamId && styles.searchRowError,
-            ]}>
+            <Pressable
+              style={[
+                styles.searchRow,
+                !!errors.selectedTeam && !selectedTeamId && styles.searchRowError,
+              ]}
+              onPress={() => teamInputRef.current?.focus()}
+            >
               <Search size={18} color={selectedTeamId ? B : MUTED} style={styles.searchIcon} />
               <TextInput
+                ref={teamInputRef}
                 style={styles.searchInput}
                 value={query}
-                onChangeText={searchTeams}
+                onChangeText={searchTeamsHandler}
                 placeholder="z. B. Nürnberg Rams…"
                 placeholderTextColor="#4A5568"
                 editable={!selectedTeamId}
+                autoCorrect={false}
+                returnKeyType="search"
+                blurOnSubmit
+                onSubmitEditing={() => Keyboard.dismiss()}
               />
               {isSearching && <ActivityIndicator size="small" color={B} style={{ marginRight: 8 }} />}
-              {!!selectedTeamId && (
-                <TouchableOpacity onPress={clearTeam} hitSlop={10}>
+              {(query.length > 0 || !!selectedTeamId) && (
+                <TouchableOpacity
+                  onPress={(e) => {
+                    e.stopPropagation?.();
+                    clearQuery();
+                  }}
+                  hitSlop={10}
+                >
                   <X size={18} color={MUTED} />
                 </TouchableOpacity>
               )}
-            </View>
+            </Pressable>
             {!!errors.selectedTeam && !selectedTeamId && (
               <Text style={styles.fieldError}>{errors.selectedTeam}</Text>
             )}
@@ -207,15 +369,14 @@ export default function TeamCreationScreen({ onSuccess, onBack }) {
                   onPress={() => selectTeam(team)}
                   activeOpacity={0.75}
                 >
-                  {team.leagues?.logo_url
-                    ? <Image source={{ uri: team.leagues.logo_url }} style={styles.leagueLogo} resizeMode="contain" />
+                  {teamSearchLogoUrl(team)
+                    ? <Image source={{ uri: teamSearchLogoUrl(team) }} style={styles.leagueLogo} resizeMode="contain" />
                     : <View style={styles.dropdownIcon}><Users size={16} color={B} /></View>
                   }
                   <View style={styles.dropdownText}>
                     <Text style={styles.dropdownName}>{team.name}</Text>
                     <Text style={styles.dropdownMeta}>
-                      {team.town}
-                      {team.leagues?.name ? `  ·  ${team.leagues.name}` : ''}
+                      {teamSearchMeta(team) || 'Kein Ort angegeben'}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -258,6 +419,178 @@ export default function TeamCreationScreen({ onSuccess, onBack }) {
 
         </View>
 
+        {/* ── WEITERE TEAM-DATEN ─────────────────────────────────────── */}
+        <Text style={styles.sectionLabel}>WEITERE TEAM-DATEN</Text>
+        <View style={[styles.formCard, !selectedTeamId && styles.formCardDisabled]}>
+          <Text style={styles.sectionHint}>
+            Optional – ergänze Logo, Farben und Trainingsinfos für dein Teamprofil.
+          </Text>
+
+          <Text style={styles.fieldLabel}>TEAM-LOGO</Text>
+          <TouchableOpacity
+            style={styles.logoPicker}
+            onPress={pickLogo}
+            activeOpacity={0.85}
+            disabled={!selectedTeamId}
+          >
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.logoPreview} resizeMode="contain" />
+            ) : (
+              <View style={styles.logoPlaceholder}>
+                <Camera size={28} color={B} />
+                <Text style={styles.logoPlaceholderText}>Logo hochladen</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          {!!avatarUri && (
+            <TouchableOpacity onPress={() => setAvatarUri(null)} style={styles.removeLogoBtn}>
+              <Text style={styles.removeLogoText}>Logo entfernen</Text>
+            </TouchableOpacity>
+          )}
+
+          <Text style={[styles.fieldLabel, { marginTop: 16 }]}>TEAMFARBEN</Text>
+          <View style={styles.twoCol}>
+            <View style={styles.colHalf}>
+              <Text style={styles.subFieldLabel}>PRIMARY</Text>
+              <View style={styles.colorRow}>
+                <View style={[styles.colorSwatch, { backgroundColor: normalizeHex(primaryColour) || B }]} />
+                <TextInput
+                  style={styles.colorInput}
+                  value={primaryColour}
+                  onChangeText={(v) => {
+                    setPrimaryColour(v);
+                    setErrors((prev) => ({ ...prev, primaryColour: undefined }));
+                  }}
+                  placeholder="#1A2F6E"
+                  placeholderTextColor="#9CA3AF"
+                  autoCapitalize="characters"
+                  editable={!!selectedTeamId}
+                />
+              </View>
+              {!!errors.primaryColour && <Text style={styles.fieldError}>{errors.primaryColour}</Text>}
+            </View>
+            <View style={styles.colHalf}>
+              <Text style={styles.subFieldLabel}>SECONDARY</Text>
+              <View style={styles.colorRow}>
+                <View style={[styles.colorSwatch, { backgroundColor: normalizeHex(secondaryColour) || R }]} />
+                <TextInput
+                  style={styles.colorInput}
+                  value={secondaryColour}
+                  onChangeText={(v) => {
+                    setSecondaryColour(v);
+                    setErrors((prev) => ({ ...prev, secondaryColour: undefined }));
+                  }}
+                  placeholder="#C01830"
+                  placeholderTextColor="#9CA3AF"
+                  autoCapitalize="characters"
+                  editable={!!selectedTeamId}
+                />
+              </View>
+              {!!errors.secondaryColour && <Text style={styles.fieldError}>{errors.secondaryColour}</Text>}
+            </View>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presetScroll}>
+            {COLOR_PRESETS.map((preset) => (
+              <TouchableOpacity
+                key={preset.value}
+                style={[styles.presetChip, { backgroundColor: preset.value, borderColor: preset.value === '#FFFFFF' ? BORDER : preset.value }]}
+                onPress={() => setPrimaryColour(preset.value)}
+                disabled={!selectedTeamId}
+              />
+            ))}
+          </ScrollView>
+
+          <View style={styles.fieldWrap}>
+            <Text style={styles.fieldLabel}>GRÜNDUNGSJAHR</Text>
+            <View style={styles.searchRow}>
+              <Clock size={18} color={MUTED} style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                value={foundingYear}
+                onChangeText={(v) => {
+                  setFoundingYear(v.replace(/[^0-9]/g, ''));
+                  setErrors((prev) => ({ ...prev, foundingYear: undefined }));
+                }}
+                placeholder="z. B. 2005"
+                placeholderTextColor="#4A5568"
+                keyboardType="number-pad"
+                maxLength={4}
+                editable={!!selectedTeamId}
+              />
+            </View>
+            {!!errors.foundingYear && <Text style={styles.fieldError}>{errors.foundingYear}</Text>}
+          </View>
+
+          <View style={styles.fieldWrap}>
+            <Text style={styles.fieldLabel}>TRAININGSORT</Text>
+            <View style={styles.searchRow}>
+              <MapPin size={18} color={MUTED} style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                value={trainingLocation}
+                onChangeText={setTrainingLocation}
+                placeholder="Adresse oder Sportanlage"
+                placeholderTextColor="#4A5568"
+                editable={!!selectedTeamId}
+              />
+            </View>
+          </View>
+
+          <Text style={styles.fieldLabel}>TRAININGSTAGE</Text>
+          <View style={styles.dayRow}>
+            {WEEKDAYS.map((day) => {
+              const active = trainingDays.includes(day);
+              return (
+                <TouchableOpacity
+                  key={day}
+                  style={[styles.dayChip, active && styles.dayChipActive]}
+                  onPress={() => toggleTrainingDay(day)}
+                  disabled={!selectedTeamId}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.dayChipText, active && styles.dayChipTextActive]}>{day}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <View style={styles.twoCol}>
+            <View style={styles.colHalf}>
+              <Text style={styles.subFieldLabel}>VON</Text>
+              <TextInput
+                style={styles.plainInput}
+                value={trainingStart}
+                onChangeText={(v) => { setExistingTrainingTimes(null); setTrainingStart(v); }}
+                placeholder="19:00"
+                placeholderTextColor="#9CA3AF"
+                editable={!!selectedTeamId}
+              />
+            </View>
+            <View style={styles.colHalf}>
+              <Text style={styles.subFieldLabel}>BIS</Text>
+              <TextInput
+                style={styles.plainInput}
+                value={trainingEnd}
+                onChangeText={(v) => { setExistingTrainingTimes(null); setTrainingEnd(v); }}
+                placeholder="21:00"
+                placeholderTextColor="#9CA3AF"
+                editable={!!selectedTeamId}
+              />
+            </View>
+          </View>
+
+          {trainingPreview ? (
+            <View style={styles.previewBox}>
+              <Text style={styles.previewLabel}>Vorschau Trainingszeiten</Text>
+              <Text style={styles.previewValue}>{trainingPreview}</Text>
+            </View>
+          ) : null}
+
+          {!selectedTeamId && (
+            <Text style={styles.disabledHint}>Wähle zuerst ein Team aus, um Details zu ergänzen.</Text>
+          )}
+        </View>
+
         {/* ── EINLADUNGSCODE ─────────────────────────────────────────── */}
         <Text style={styles.sectionLabel}>EINLADUNGSCODE</Text>
         <View style={styles.formCard}>
@@ -280,6 +613,9 @@ export default function TeamCreationScreen({ onSuccess, onBack }) {
                 placeholderTextColor="#4A5568"
                 autoCapitalize="characters"
                 autoCorrect={false}
+                returnKeyType="done"
+                blurOnSubmit
+                onSubmitEditing={() => Keyboard.dismiss()}
               />
             </View>
             {!!errors.inviteCode && (
@@ -325,6 +661,8 @@ export default function TeamCreationScreen({ onSuccess, onBack }) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      </Pressable>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -464,4 +802,59 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: B,
   },
   footerBtnText: { color: B, fontSize: 13, fontWeight: '800' },
+
+  formCardDisabled: { opacity: 0.92 },
+  sectionHint: { color: MUTED, fontSize: 12, lineHeight: 18, marginBottom: 16 },
+  disabledHint: { color: '#9CA3AF', fontSize: 12, textAlign: 'center', marginTop: 12 },
+
+  logoPicker: { alignSelf: 'center', marginBottom: 8 },
+  logoPreview: { width: 96, height: 96, borderRadius: 20, borderWidth: 2, borderColor: B },
+  logoPlaceholder: {
+    width: 96, height: 96, borderRadius: 20, backgroundColor: '#FFFFFF',
+    borderWidth: 2, borderColor: BORDER, borderStyle: 'dashed',
+    alignItems: 'center', justifyContent: 'center', gap: 4,
+  },
+  logoPlaceholderText: { color: MUTED, fontSize: 10, fontWeight: '600' },
+  removeLogoBtn: { alignSelf: 'center', marginBottom: 4 },
+  removeLogoText: { color: R, fontSize: 12, fontWeight: '700' },
+
+  twoCol: { flexDirection: 'row', gap: 12 },
+  colHalf: { flex: 1 },
+  subFieldLabel: {
+    color: MUTED, fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginBottom: 6,
+  },
+  colorRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1.5, borderColor: BORDER,
+    paddingHorizontal: 10, marginBottom: 8,
+  },
+  colorSwatch: {
+    width: 28, height: 28, borderRadius: 8, borderWidth: 1, borderColor: BORDER,
+  },
+  colorInput: { flex: 1, color: B, fontSize: 14, paddingVertical: 10 },
+  presetScroll: { marginBottom: 12 },
+  presetChip: {
+    width: 28, height: 28, borderRadius: 14, marginRight: 8, borderWidth: 1.5,
+  },
+
+  plainInput: {
+    backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1.5, borderColor: BORDER,
+    paddingHorizontal: 12, paddingVertical: 12, color: B, fontSize: 14, marginBottom: 8,
+  },
+
+  dayRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  dayChip: {
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18,
+    backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: BORDER,
+  },
+  dayChipActive: { backgroundColor: B, borderColor: B },
+  dayChipText: { color: MUTED, fontSize: 12, fontWeight: '700' },
+  dayChipTextActive: { color: '#FFFFFF' },
+
+  previewBox: {
+    backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: BORDER,
+    padding: 12, marginTop: 4,
+  },
+  previewLabel: { color: MUTED, fontSize: 10, fontWeight: '800', letterSpacing: 0.6, marginBottom: 4 },
+  previewValue: { color: B, fontSize: 13, fontWeight: '600' },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,11 +10,8 @@ import {
   Image,
 } from 'react-native';
 import { Search, Check, X } from 'lucide-react-native';
-import { supabase } from '../../../lib/supabase';
+import { searchTeams, teamSearchMeta, teamSearchLogoUrl, type TeamSearchResult } from '../../../lib/teamSearch';
 import { OnboardingData } from '../PlayerOnboardingFlow';
-
-type League = { name: string; logo_url: string | null };
-type Team   = { id: string; name: string; town: string; leagues?: League | null };
 
 type Props = {
   data: OnboardingData;
@@ -25,40 +22,53 @@ type Props = {
 
 export default function CoachStep3_TeamSearch({ data, update, onNext, onBack }: Props) {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Team[]>([]);
+  const [results, setResults] = useState<TeamSearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const search = useCallback(async (text: string) => {
-    setQuery(text);
-    if (text.trim().length < 2) { setResults([]); return; }
-    setIsLoading(true);
-    setSearchError(null);
-    try {
-      const { data: teams, error } = await supabase
-        .from('teams')
-        .select('id, name, town, leagues(name, logo_url)')
-        .ilike('name', `%${text.trim()}%`)
-        .limit(10);
-      if (error) throw error;
-      setResults(teams ?? []);
-    } catch {
-      setSearchError('Suche fehlgeschlagen. Bitte versuche es erneut.');
-    } finally {
-      setIsLoading(false);
-    }
+  useEffect(() => () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
   }, []);
 
-  const selectTeam = (team: Team) => {
+  const runSearch = useCallback(async (text: string) => {
+    const trimmed = text.trim();
+    if (trimmed.length < 2) {
+      setResults([]);
+      setSearchError(null);
+      setHasSearched(false);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setSearchError(null);
+    const { teams, error } = await searchTeams(trimmed);
+    setResults(teams);
+    setSearchError(error);
+    setHasSearched(true);
+    setIsLoading(false);
+  }, []);
+
+  const handleQueryChange = (text: string) => {
+    setQuery(text);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => runSearch(text), 300);
+  };
+
+  const selectTeam = (team: TeamSearchResult) => {
     update({ selectedTeamId: team.id, selectedTeamName: team.name });
     setQuery(team.name);
     setResults([]);
+    setHasSearched(false);
   };
 
   const clearSelection = () => {
     update({ selectedTeamId: null, selectedTeamName: null });
     setQuery('');
     setResults([]);
+    setHasSearched(false);
   };
 
   return (
@@ -77,10 +87,11 @@ export default function CoachStep3_TeamSearch({ data, update, onNext, onBack }: 
         <TextInput
           style={styles.searchInput}
           value={query}
-          onChangeText={search}
-          placeholder="Teamname suchen…"
+          onChangeText={handleQueryChange}
+          placeholder="Teamname, Kürzel oder Ort…"
           placeholderTextColor="#4A5568"
           editable={!data.selectedTeamId}
+          autoCorrect={false}
         />
         {isLoading && <ActivityIndicator size="small" color="#1A2F6E" style={{ marginRight: 6 }} />}
         {!!data.selectedTeamId && (
@@ -104,17 +115,18 @@ export default function CoachStep3_TeamSearch({ data, update, onNext, onBack }: 
               onPress={() => selectTeam(team)}
               activeOpacity={0.75}
             >
-              <LeagueLogo uri={team.leagues?.logo_url ?? null} />
+              <TeamLogo team={team} />
               <View style={styles.dropdownText}>
                 <Text style={styles.teamName}>{team.name}</Text>
-                <Text style={styles.teamMeta}>
-                  {team.town}
-                  {team.leagues?.name ? `  ·  ${team.leagues.name}` : ''}
-                </Text>
+                <Text style={styles.teamMeta}>{teamSearchMeta(team) || 'Kein Ort angegeben'}</Text>
               </View>
             </TouchableOpacity>
           ))}
         </View>
+      )}
+
+      {hasSearched && !isLoading && !searchError && results.length === 0 && query.trim().length >= 2 && (
+        <Text style={styles.emptyText}>Kein Team gefunden für „{query.trim()}“</Text>
       )}
 
       {!!data.selectedTeamId && (
@@ -142,13 +154,18 @@ export default function CoachStep3_TeamSearch({ data, update, onNext, onBack }: 
   );
 }
 
-// ─── League Logo Helper ───────────────────────────────────────────────────────
-
-function LeagueLogo({ uri }: { uri: string | null }) {
+function TeamLogo({ team }: { team: TeamSearchResult }) {
+  const uri = teamSearchLogoUrl(team);
   if (uri) {
-    return <Image source={{ uri }} style={styles.leagueLogo} resizeMode="contain" />;
+    return <Image source={{ uri }} style={styles.teamLogo} resizeMode="contain" />;
   }
-  return <View style={styles.leagueLogoPlaceholder} />;
+  return (
+    <View style={styles.teamLogoPlaceholder}>
+      <Text style={styles.teamLogoInitials}>
+        {(team.short_name || team.name || '?').slice(0, 2).toUpperCase()}
+      </Text>
+    </View>
+  );
 }
 
 const B = '#1A2F6E';
@@ -167,6 +184,7 @@ const styles = StyleSheet.create({
   searchIcon:  { marginRight: 8 },
   searchInput: { flex: 1, color: B, fontSize: 15, paddingVertical: 13 },
   error: { color: R, fontSize: 12, marginTop: 8 },
+  emptyText: { color: '#6B7280', fontSize: 13, marginTop: 12, textAlign: 'center' },
   dropdown: {
     backgroundColor: '#FFFFFF', borderRadius: 12,
     borderWidth: 1, borderColor: '#D1D8F0', overflow: 'hidden', marginTop: 4,
@@ -177,11 +195,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: '#D1D8F0',
   },
   dropdownItemLast: { borderBottomWidth: 0 },
-  leagueLogo: { width: 32, height: 32, borderRadius: 6 },
-  leagueLogoPlaceholder: {
+  teamLogo: { width: 32, height: 32, borderRadius: 6 },
+  teamLogoPlaceholder: {
     width: 32, height: 32, borderRadius: 6,
     backgroundColor: '#F0F4FF', borderWidth: 1, borderColor: '#D1D8F0',
+    alignItems: 'center', justifyContent: 'center',
   },
+  teamLogoInitials: { color: B, fontSize: 10, fontWeight: '800' },
   dropdownText: { flex: 1 },
   teamName: { color: B, fontSize: 14, fontWeight: '700' },
   teamMeta: { color: '#6B7280', fontSize: 11, marginTop: 2 },

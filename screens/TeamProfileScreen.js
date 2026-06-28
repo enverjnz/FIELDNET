@@ -4,12 +4,14 @@ import {
   SafeAreaView, StatusBar, ScrollView, ActivityIndicator,
   Alert, Image, Modal, RefreshControl,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import {
   ArrowLeft, Edit2, Save, X, Users, Phone,
   Mail, Globe, Instagram, MapPin, Clock, Trophy,
-  Check, Trash2, ChevronDown, Calendar,
+  Check, Trash2, ChevronDown, Calendar, Camera,
 } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
+import { resolveTeamLogoUrl } from '../lib/uploadImage';
 import { acceptMembershipRequest, rejectMembershipRequest } from '../lib/teamMembership';
 import FullscreenImageModal from '../components/FullscreenImageModal';
 import TimelineScreen from './TimelineScreen';
@@ -291,38 +293,77 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
     setDraft({});
   };
 
+  const pickLogo = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Berechtigung fehlt', 'Bitte erlaube den Zugriff auf deine Fotos.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      setDraft((p) => ({ ...p, avatar_teamlogo: result.assets[0].uri }));
+    }
+  };
+
   const saveProfile = async () => {
     if (!draft.name?.trim()) {
       Alert.alert('Fehler', 'Teamname ist Pflichtfeld.');
       return;
     }
     setSaving(true);
-    const { error } = await supabase
-      .from('teams')
-      .update({
-        name:              draft.name.trim(),
-        short_name:        draft.short_name.trim()        || null,
-        town:              draft.town.trim()              || null,
-        founding_year:     draft.founding_year ? parseInt(draft.founding_year, 10) : null,
-        training_location: draft.training_location.trim() || null,
-        training_times:    draft.training_times.trim()    || null,
-        website:           draft.website.trim()           || null,
-        tel:               draft.tel.trim()               || null,
-        email:             draft.email.trim()             || null,
-        instagram:         draft.instagram.trim()         || null,
-        avatar_teamlogo:   draft.avatar_teamlogo.trim()   || null,
-        leagues_idleague:  draft.leagueId || null,
-      })
-      .eq('id', teamId);
+    try {
+      let logoUrl = null;
+      if (draft.avatar_teamlogo?.trim()) {
+        try {
+          logoUrl = await resolveTeamLogoUrl(teamId, draft.avatar_teamlogo);
+        } catch (uploadErr) {
+          const msg = uploadErr instanceof Error ? uploadErr.message : 'Unbekannter Upload-Fehler';
+          throw new Error(
+            msg.includes('row-level security') || msg.includes('row level security')
+              ? 'Logo-Upload blockiert. Bitte sql/storage_policies.sql in Supabase ausführen.'
+              : `Logo-Upload fehlgeschlagen: ${msg}`,
+          );
+        }
+      }
 
-    setSaving(false);
+      const { error } = await supabase
+        .from('teams')
+        .update({
+          name:              draft.name.trim(),
+          short_name:        draft.short_name.trim()        || null,
+          town:              draft.town.trim()              || null,
+          founding_year:     draft.founding_year ? parseInt(draft.founding_year, 10) : null,
+          training_location: draft.training_location.trim() || null,
+          training_times:    draft.training_times.trim()    || null,
+          website:           draft.website.trim()           || null,
+          tel:               draft.tel.trim()               || null,
+          email:             draft.email.trim()             || null,
+          instagram:         draft.instagram.trim()         || null,
+          avatar_teamlogo:   logoUrl,
+          leagues_idleague:  draft.leagueId || null,
+        })
+        .eq('id', teamId);
 
-    if (error) {
-      Alert.alert('Fehler', error.message);
-    } else {
+      if (error) throw error;
+
       Alert.alert('Gespeichert', 'Teamprofil wurde aktualisiert.');
       setIsEditing(false);
       loadData();
+    } catch (error) {
+      const msg = error?.message ?? 'Speichern fehlgeschlagen.';
+      Alert.alert(
+        'Fehler',
+        msg.includes('row-level security') || msg.includes('row level security')
+          ? 'Zugriff verweigert (RLS). Bitte sql/profile_team_rls.sql in Supabase ausführen.'
+          : msg,
+      );
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -441,16 +482,39 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
       >
         {/* TEAM LOGO */}
         <View style={styles.logoSection}>
-          {(isEditing ? draft.avatar_teamlogo : team?.avatar_teamlogo) ? (
+          {isEditing ? (
+            <>
+              <TouchableOpacity style={styles.logoPicker} onPress={pickLogo} activeOpacity={0.85}>
+                {draft.avatar_teamlogo ? (
+                  <Image
+                    source={{ uri: draft.avatar_teamlogo }}
+                    style={styles.teamLogo}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <View style={styles.teamLogoPlaceholder}>
+                    <Camera size={28} color="#FFFFFF" />
+                    <Text style={styles.logoPickerHint}>Logo hochladen</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              {!!draft.avatar_teamlogo && (
+                <TouchableOpacity
+                  onPress={() => setDraft((p) => ({ ...p, avatar_teamlogo: '' }))}
+                  style={styles.removeLogoBtn}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.removeLogoText}>Bild entfernen</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          ) : (team?.avatar_teamlogo ? (
             <TouchableOpacity
-              onPress={() => {
-                const uri = isEditing ? draft.avatar_teamlogo : team?.avatar_teamlogo;
-                if (uri) setFullscreenImage(uri);
-              }}
+              onPress={() => setFullscreenImage(team.avatar_teamlogo)}
               activeOpacity={0.85}
             >
               <Image
-                source={{ uri: isEditing ? draft.avatar_teamlogo : team.avatar_teamlogo }}
+                source={{ uri: team.avatar_teamlogo }}
                 style={styles.teamLogo}
                 resizeMode="contain"
               />
@@ -459,20 +523,7 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
             <View style={styles.teamLogoPlaceholder}>
               <Trophy size={44} color="#FFFFFF" />
             </View>
-          )}
-          {isEditing && (
-            <View style={styles.fieldWrap}>
-              <Text style={styles.fieldLabel}>TEAM LOGO URL</Text>
-              <TextInput
-                style={styles.fieldInput}
-                value={draft.avatar_teamlogo}
-                onChangeText={(v) => setDraft(p => ({ ...p, avatar_teamlogo: v }))}
-                placeholder="https://..."
-                placeholderTextColor="#9CA3AF"
-                autoCapitalize="none"
-              />
-            </View>
-          )}
+          ))}
         </View>
 
         {/* ALLGEMEINE INFOS */}
@@ -871,6 +922,10 @@ const styles = StyleSheet.create({
   saveBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
 
   logoSection:       { alignItems: 'center', paddingVertical: 20 },
+  logoPicker:        { marginBottom: 8 },
+  logoPickerHint:    { color: '#FFFFFF', fontSize: 10, fontWeight: '600', marginTop: 6 },
+  removeLogoBtn:     { marginBottom: 8 },
+  removeLogoText:    { color: R, fontSize: 12, fontWeight: '600' },
   teamLogo:          { width: 120, height: 120, borderRadius: 24, marginBottom: 8, backgroundColor: BG },
   teamLogoPlaceholder: {
     width: 120, height: 120, borderRadius: 24, marginBottom: 8,

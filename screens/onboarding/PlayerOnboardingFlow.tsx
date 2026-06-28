@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { CheckCircle } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
+import { birthDateProfileFields } from '../../lib/profileDates';
+import { resolveProfileAvatarUrl } from '../../lib/uploadImage';
 import Step1_RoleSelect from './steps/Step1_RoleSelect';
 import Step2_BasicInfo from './steps/Step2_BasicInfo';
 import Step3_TeamSearch from './steps/Step3_TeamSearch';
@@ -29,13 +31,13 @@ export type OnboardingData = {
   lastName: string;
   bio: string;
   avatarUri: string | null;
+  birthDate: Date | null;
   // Player / Coach – team
   selectedTeamId: string | null;
   selectedTeamName: string | null;
   // Player – athletic profile
   position: string;
   jerseyNumber: string;
-  age: string;
   gender: string;
   weight: string;
   height: string;
@@ -57,11 +59,11 @@ const INITIAL_DATA: OnboardingData = {
   lastName: '',
   bio: '',
   avatarUri: null,
+  birthDate: null,
   selectedTeamId: null,
   selectedTeamName: null,
   position: '',
   jerseyNumber: '',
-  age: '',
   gender: '',
   weight: '',
   height: '',
@@ -197,16 +199,18 @@ export default function PlayerOnboardingFlow({ onComplete }: Props) {
     try {
       const user = await createAccount(email, password, 'player');
 
+      const avatarUrl = await resolveProfileAvatarUrl(user.id, data.avatarUri);
+
       const { error: profileError } = await supabase.from('profiles').upsert({
         id: user.id,
         role: 'player',
         first_name: data.firstName.trim(),
         last_name: data.lastName.trim(),
         bio: data.bio.trim(),
-        avatar: data.avatarUri ?? null,
+        avatar: avatarUrl,
+        ...birthDateProfileFields(data.birthDate),
         position: data.position.trim(),
         jersey_number: data.jerseyNumber.trim(),
-        age: data.age ? parseInt(data.age, 10) : null,
         gender: data.gender.trim(),
         weight: data.weight ? parseFloat(data.weight) : null,
         height: data.height ? parseFloat(data.height) : null,
@@ -237,13 +241,16 @@ export default function PlayerOnboardingFlow({ onComplete }: Props) {
     try {
       const user = await createAccount(email, password, 'fan');
 
+      const avatarUrl = await resolveProfileAvatarUrl(user.id, data.avatarUri);
+
       const { error: profileError } = await supabase.from('profiles').upsert({
         id: user.id,
         role: 'fan',
         first_name: data.firstName.trim(),
         last_name: data.lastName.trim(),
         bio: data.bio.trim(),
-        avatar: data.avatarUri ?? null,
+        avatar: avatarUrl,
+        ...birthDateProfileFields(data.birthDate),
       });
       if (profileError) throw profileError;
 
@@ -261,13 +268,16 @@ export default function PlayerOnboardingFlow({ onComplete }: Props) {
     try {
       const user = await createAccount(email, password, 'coach');
 
+      const avatarUrl = await resolveProfileAvatarUrl(user.id, data.avatarUri);
+
       const { error: profileError } = await supabase.from('profiles').upsert({
         id: user.id,
         role: 'coach',
         first_name: data.firstName.trim(),
         last_name: data.lastName.trim(),
         bio: data.bio.trim(),
-        avatar: data.avatarUri ?? null,
+        avatar: avatarUrl,
+        ...birthDateProfileFields(data.birthDate),
         coaching_role: data.coachingRole.trim() || null,
         coaching_license: data.coachingLicense.trim() || null,
         coaching_experience: data.coachingExperience

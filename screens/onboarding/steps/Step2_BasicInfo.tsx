@@ -12,6 +12,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { Camera } from 'lucide-react-native';
 import { OnboardingData } from '../PlayerOnboardingFlow';
+import BirthDateField from '../../../components/BirthDateField';
 
 type Props = {
   data: OnboardingData;
@@ -84,6 +85,10 @@ export default function Step2_BasicInfo({ data, update, onNext, onBack }: Props)
         onChangeText={(v) => update({ lastName: v })}
         placeholder="Mustermann"
         error={errors.lastName}
+      />
+      <BirthDateField
+        value={data.birthDate}
+        onChange={(birthDate) => update({ birthDate })}
       />
       <Field
         label="Bio"

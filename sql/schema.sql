@@ -14,6 +14,10 @@ XXXvotings,status,character varying,YES,null
 clubs,id,uuid,NO,gen_random_uuid()
 clubs,name,character varying,NO,null
 clubs,created_at,timestamp with time zone,NO,"timezone('utc'::text, now())"
+delete_profiles,id,bigint,NO,null
+delete_profiles,created_at,timestamp with time zone,NO,"timezone('utc'::text, now())"
+delete_profiles,reason,text,NO,null
+delete_profiles,feedback,text,YES,null
 games,id,integer,NO,nextval('games_idgame_seq'::regclass)
 games,status,character varying,YES,'SCHEDULED'::character varying
 games,home_score,integer,YES,0
@@ -30,6 +34,19 @@ leagues,id,uuid,NO,gen_random_uuid()
 leagues,name,text,NO,null
 leagues,created_at,timestamp with time zone,NO,"timezone('utc'::text, now())"
 leagues,league_logo_url,text,YES,null
+leagues,region_id,integer,YES,null
+leagues,division,character varying,NO,'Herren'::character varying
+profile_stats,id,bigint,NO,null
+profile_stats,profile_id,uuid,NO,null
+profile_stats,seasons_played,integer,NO,1
+profile_stats,games_played,integer,NO,0
+profile_stats,touchdowns,integer,NO,0
+profile_stats,field_goals,integer,NO,0
+profile_stats,extra_points,integer,NO,0
+profile_stats,two_point_conversions,integer,NO,0
+profile_stats,interceptions,integer,NO,0
+profile_stats,sacks,integer,NO,0
+profile_stats,count_mvp,integer,NO,0
 profiles,id,uuid,NO,null
 profiles,role,text,NO,null
 profiles,avatar,text,YES,null
@@ -53,6 +70,12 @@ regions,id,integer,NO,nextval('regions_idregion_seq'::regclass)
 regions,name,character varying,NO,null
 regions,country_unit,text,YES,null
 regions,region_logo_url,text,YES,null
+team_invite_codes,id,uuid,NO,gen_random_uuid()
+team_invite_codes,code,text,NO,null
+team_invite_codes,is_used,boolean,NO,false
+team_invite_codes,used_by_user_id,uuid,YES,null
+team_invite_codes,team_id,uuid,YES,null
+team_invite_codes,created_at,timestamp with time zone,NO,"timezone('utc'::text, now())"
 team_managers,id,integer,NO,nextval('team_managers_idteam_manager_seq'::regclass)
 team_managers,profile_id,uuid,NO,null
 team_managers,team_id,uuid,NO,null
@@ -61,33 +84,32 @@ team_memberships,player_id,uuid,NO,null
 team_memberships,team_id,uuid,NO,null
 team_memberships,status,text,NO,'pending'::text
 team_memberships,created_at,timestamp with time zone,NO,"timezone('utc'::text, now())"
+team_stats,id,bigint,NO,null
+team_stats,team_id,uuid,NO,null
+team_stats,seasons_played,integer,NO,1
+team_stats,games_played,integer,NO,0
+team_stats,wins,integer,NO,0
+team_stats,losses,integer,NO,0
+team_stats,ties,integer,NO,0
+team_stats,points_for,integer,NO,0
+team_stats,points_against,integer,NO,0
 teams,id,uuid,NO,gen_random_uuid()
 teams,name,character varying,NO,null
 teams,avatar_teamlogo,text,YES,null
 teams,primary_colour,text,YES,null
 teams,secondary_colour,text,YES,null
 teams,town,text,YES,null
-teams,founding_year,integer,YES,null
-teams,number_of_members,integer,YES,null
-teams,training_location,text,YES,null
-teams,training_times,text,YES,null
-teams,clubs_idclub,uuid,YES,null
-teams,leagues_idleague,uuid,YES,null
-teams,website,text,YES,null
-teams,tel,text,YES,null
-teams,email,text,YES,null
-teams,instagram,text,YES,null
-teams,created_at,timestamp with time zone,NO,"timezone('utc'::text, now())"
-teams,regions_idregion,integer,YES,null
-teams,short_name,character varying,NO,null
-ticker_events,id,integer,NO,nextval('ticker_events_idticker_event_seq'::regclass)
-ticker_events,quarter,character varying,YES,null
-ticker_events,games_idgame,integer,NO,null
 
-//Alle RLS Policies
-schemaname,tablename,policyname,permissive,roles,cmd,qual,with_check
+--Policies
+Schema,Tabelle,Policy Name,Typ,Rollen,Operation,USING (Check für bestehende Zeilen),WITH CHECK (Check für neue Zeilen)
 public,games,Dev Allow All Games,PERMISSIVE,{public},ALL,true,true
+public,leagues,Dev Allow All Leagues,PERMISSIVE,{public},ALL,true,true
 public,profiles,Dev Allow All Profiles,PERMISSIVE,{public},ALL,true,true
+public,regions,Dev Allow All Regions,PERMISSIVE,{public},ALL,true,true
+public,team_invite_codes,Authenticated can read invite codes,PERMISSIVE,{authenticated},SELECT,true,null
+public,team_invite_codes,Coach can redeem invite code,PERMISSIVE,{authenticated},UPDATE,((used_by_user_id IS NULL) OR (used_by_user_id = auth.uid())),(used_by_user_id = auth.uid())
+public,team_managers,Coach can insert own manager row,PERMISSIVE,{authenticated},INSERT,null,(profile_id = auth.uid())
+public,team_managers,Manager kann eigene Zuordnung löschen,PERMISSIVE,{authenticated},DELETE,(profile_id = auth.uid()),null
 public,team_managers,managers_select_own,PERMISSIVE,{authenticated},SELECT,(profile_id = auth.uid()),null
 public,team_memberships,Coach kann Kader seines Teams lesen,PERMISSIVE,{public},SELECT,"((team_id IN ( SELECT team_managers.team_id
    FROM team_managers
@@ -102,19 +124,9 @@ public,team_memberships,Coach kann Kader-Status seines Teams aktualisieren,PERMI
   WHERE (team_managers.profile_id = auth.uid())))"
 public,team_memberships,Dev Allow All Memberships,PERMISSIVE,{public},ALL,true,true
 public,team_memberships,User kann Mitgliedschaft beantragen,PERMISSIVE,{authenticated},INSERT,null,(player_id = auth.uid())
+public,team_memberships,User kann eigene Mitgliedschaft löschen,PERMISSIVE,{authenticated},DELETE,(player_id = auth.uid()),null
 public,team_memberships,User kann eigene Mitgliedschaften lesen,PERMISSIVE,{public},SELECT,(player_id = auth.uid()),null
 public,teams,Dev Allow All Teams,PERMISSIVE,{public},ALL,true,true
-
-//Foreign Keys
-table_name,column_name,foreign_table,foreign_column
-teams,clubs_idclub,clubs,id
-teams,leagues_idleague,leagues,id
-ticker_events,games_idgame,games,id
-profiles,favourite_team_id,teams,id
-team_managers,profile_id,profiles,id
-team_managers,team_id,teams,id
-team_memberships,player_id,profiles,id
-team_memberships,team_id,teams,id
-teams,regions_idregion,regions,id
-games,home_team_id,teams,id
-games,created_by,profiles,id
+public,ticker_events,Anyone can read ticker events,PERMISSIVE,{public},SELECT,true,null
+public,ticker_events,Authenticated can insert ticker events,PERMISSIVE,{authenticated},INSERT,null,(created_by = auth.uid())
+public,ticker_events,Coach can update own ticker events,PERMISSIVE,{authenticated},UPDATE,(created_by = auth.uid()),(created_by = auth.uid())

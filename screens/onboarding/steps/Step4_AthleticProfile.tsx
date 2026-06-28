@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { OnboardingData } from '../PlayerOnboardingFlow';
 import { Field } from './Step2_BasicInfo';
+import { ageFromBirthDate } from '../../../lib/profileDates';
 
 type Props = {
   data: OnboardingData;
@@ -28,6 +29,8 @@ export default function Step4_AthleticProfile({
   onSubmit,
   isSubmitting,
 }: Props) {
+  const computedAge = ageFromBirthDate(data.birthDate);
+
   return (
     <ScrollView
       contentContainerStyle={styles.container}
@@ -80,25 +83,20 @@ export default function Step4_AthleticProfile({
         ))}
       </View>
 
-      <View style={styles.twoCol}>
-        <View style={styles.colField}>
-          <Field
-            label="Alter"
-            value={data.age}
-            onChangeText={(v) => update({ age: v })}
-            placeholder="z.B. 22"
-            keyboardType="numeric"
-          />
+      {computedAge != null && (
+        <View style={styles.ageHintWrap}>
+          <Text style={styles.fieldLabel}>ALTER</Text>
+          <Text style={styles.ageHintValue}>{computedAge} Jahre</Text>
+          <Text style={styles.ageHintSub}>Aus deinem Geburtsdatum</Text>
         </View>
-        <View style={styles.colField}>
-          <Field
-            label="Nationalität"
-            value={data.nationality}
-            onChangeText={(v) => update({ nationality: v })}
-            placeholder="z.B. Deutsch"
-          />
-        </View>
-      </View>
+      )}
+
+      <Field
+        label="Nationalität"
+        value={data.nationality}
+        onChangeText={(v) => update({ nationality: v })}
+        placeholder="z.B. Deutsch"
+      />
 
       <View style={styles.twoCol}>
         <View style={styles.colField}>
@@ -175,6 +173,9 @@ const styles = StyleSheet.create({
   },
   twoCol: { flexDirection: 'row', gap: 12 },
   colField: { flex: 1 },
+  ageHintWrap: { marginBottom: 16 },
+  ageHintValue: { color: B, fontSize: 15, fontWeight: '800' },
+  ageHintSub: { color: '#6B7280', fontSize: 11, marginTop: 4 },
   row: { flexDirection: 'row', gap: 12, marginTop: 8 },
   btn: { flex: 2, backgroundColor: R, borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
   btnDisabled: { opacity: 0.6 },

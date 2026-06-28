@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Text, Image, View, ImageBackground, 
   ScrollView, TouchableOpacity, SafeAreaView, 
-  StatusBar, Alert, ActivityIndicator } from 'react-native';
+  StatusBar, Alert, ActivityIndicator, Keyboard } from 'react-native';
 
 // Alle benötigten Icons in einem einzigen Import zusammengefasst
 import { Trophy, Bell, Search, 
@@ -57,8 +57,30 @@ export default function App() {
   const [showTickerFlow, setShowTickerFlow]       = useState(false);
   const [tickerGame, setTickerGame]               = useState(null);
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
+  const [sucheResetKey, setSucheResetKey]         = useState(0);
+  const [profilResetKey, setProfilResetKey]         = useState(0);
+  const [isMenuOpen, setIsMenuOpen]                 = useState(false);
 
   const bumpProfileRefresh = () => setProfileRefreshKey((k) => k + 1);
+
+  const goToTab = (index) => {
+    const reselect = index === activeTab && !selectedGame;
+    Keyboard.dismiss();
+    setActiveTab(index);
+    setSelectedGame(null);
+    setIsMenuOpen(false);
+    setShowSettings(false);
+    setShowDeleteProfile(false);
+    setShowTeamDashboard(false);
+    setDashboardTeamId(null);
+    setShowInvoiceCode(false);
+    setShowTeamCreation(false);
+    setPendingInviteCodeId(null);
+    setShowTickerFlow(false);
+    setTickerGame(null);
+    if (reselect && index === 3) setSucheResetKey((k) => k + 1);
+    if (reselect && index === 4) setProfilResetKey((k) => k + 1);
+  };
 
   useEffect(() => {
     const loadRole = async () => {
@@ -185,13 +207,7 @@ export default function App() {
     }
   };
 
-  // 1. Hilfsfunktion zum Rendern der verschiedenen Tab-Inhalte
-  const [isMenuOpen, setIsMenuOpen] = useState(false); // Steuert, ob das Menü offen ist
-  const renderContent = () => {switch (activeTab) {
-
-      //HOME BEREICH
-      case 0:
-        return (
+  const renderHomeTab = () => (
           <ScrollView showsVerticalScrollIndicator={false} style={styles.feedScroll}>
             {/* HERO CARD (TOP STORY) */}
             <TouchableOpacity activeOpacity={0.9} style={styles.heroCard}>
@@ -375,19 +391,20 @@ export default function App() {
 
             <View style={{ height: 140 }} />
           </ScrollView>
-        );
+  );
+
+  const renderActiveTab = () => {
+    switch (activeTab) {
+      case 0:
+        return renderHomeTab();
       case 1:
         return <LigenScreen />;
-        
       case 2:
         return <ChatScreen />;
-        
       case 3:
-        return <SucheScreen />;
-
+        return <SucheScreen key={sucheResetKey} />;
       case 4:
-        return <ProfilScreen refreshKey={profileRefreshKey} />;
-
+        return <ProfilScreen key={profilResetKey} refreshKey={profileRefreshKey} />;
       default:
         return null;
     }
@@ -451,11 +468,13 @@ export default function App() {
       </View>
 
       {/* DYNAMISCHER INHALT JE NACH AKTIVEM TAB ODER AUSGEWÄHLTEM SPIEL */}
-{selectedGame ? (
-  <TimelineScreen gameId={selectedGame.id} onBack={() => setSelectedGame(null)} />
-) : (
-  renderContent()
-)}
+      <View style={{ flex: 1, overflow: 'hidden' }}>
+        {selectedGame ? (
+          <TimelineScreen gameId={selectedGame.id} onBack={() => setSelectedGame(null)} />
+        ) : (
+          renderActiveTab()
+        )}
+      </View>
       
 
       {/* SCHWEBENDE BOTTOM NAVIGATION BAR + BANNER */}
@@ -464,49 +483,44 @@ export default function App() {
 
         {/* DIE KORRIGIERTE 5-TAB NAVBAR */}
         <View style={styles.navBar}>
-          {/* 0. HOME / NEWS TAB */}
-          <TouchableOpacity 
-            style={activeTab === 0 ? styles.activeNavTab : styles.navTab}
-            onPress={() => { setActiveTab(0); setSelectedGame(null); }}
+          <TouchableOpacity
+            style={[styles.navTabItem, activeTab === 0 && styles.navTabItemActive]}
+            onPress={() => goToTab(0)}
+            activeOpacity={0.75}
           >
-            <Home size={20} color={activeTab === 0 ? "#FFFFFF" : "#A0AFCF"} />
-            {activeTab === 0 && <Text style={styles.activeNavTabText}>NEWS</Text>}
+            <Home size={22} color={activeTab === 0 ? '#FFFFFF' : '#A0AFCF'} />
           </TouchableOpacity>
 
-          {/* 1. LIGEN TAB */}
-          <TouchableOpacity 
-            style={activeTab === 1 ? styles.activeNavTab : styles.navTab}
-            onPress={() => { setActiveTab(1); setSelectedGame(null); }}
+          <TouchableOpacity
+            style={[styles.navTabItem, activeTab === 1 && styles.navTabItemActive]}
+            onPress={() => goToTab(1)}
+            activeOpacity={0.75}
           >
-            <LayoutGrid size={22} color={activeTab === 1 ? "#FFFFFF" : "#A0AFCF"} />
-            {activeTab === 1 && <Text style={styles.activeNavTabText}>LIGEN</Text>}
+            <LayoutGrid size={22} color={activeTab === 1 ? '#FFFFFF' : '#A0AFCF'} />
           </TouchableOpacity>
 
-          {/* 2. CHATS / COMMUNITY TAB */}
-          <TouchableOpacity 
-            style={activeTab === 2 ? styles.activeNavTab : styles.navTab}
-            onPress={() => { setActiveTab(2); setSelectedGame(null); }}
+          <TouchableOpacity
+            style={[styles.navTabItem, activeTab === 2 && styles.navTabItemActive]}
+            onPress={() => goToTab(2)}
+            activeOpacity={0.75}
           >
-            <MessageSquare size={22} color={activeTab === 2 ? "#FFFFFF" : "#A0AFCF"} />
-            {activeTab === 2 && <Text style={styles.activeNavTabText}>CHATS</Text>}
+            <MessageSquare size={22} color={activeTab === 2 ? '#FFFFFF' : '#A0AFCF'} />
           </TouchableOpacity>
 
-          {/* 3. SUCHE TAB */}
-          <TouchableOpacity 
-            style={activeTab === 3 ? styles.activeNavTab : styles.navTab}
-            onPress={() => { setActiveTab(3); setSelectedGame(null); }}
+          <TouchableOpacity
+            style={[styles.navTabItem, activeTab === 3 && styles.navTabItemActive]}
+            onPress={() => goToTab(3)}
+            activeOpacity={0.75}
           >
-            <Search size={22} color={activeTab === 3 ? "#FFFFFF" : "#A0AFCF"} />
-            {activeTab === 3 && <Text style={styles.activeNavTabText}>SUCHE</Text>}
+            <Search size={22} color={activeTab === 3 ? '#FFFFFF' : '#A0AFCF'} />
           </TouchableOpacity>
 
-          {/* 4. PROFIL TAB */}
-          <TouchableOpacity 
-            style={activeTab === 4 ? styles.activeNavTab : styles.navTab}
-            onPress={() => { setActiveTab(4); setSelectedGame(null); }}
+          <TouchableOpacity
+            style={[styles.navTabItem, activeTab === 4 && styles.navTabItemActive]}
+            onPress={() => goToTab(4)}
+            activeOpacity={0.75}
           >
-            <User size={22} color={activeTab === 4 ? "#FFFFFF" : "#A0AFCF"} />
-            {activeTab === 4 && <Text style={styles.activeNavTabText}>PROFIL</Text>}
+            <User size={22} color={activeTab === 4 ? '#FFFFFF' : '#A0AFCF'} />
           </TouchableOpacity>
         </View>
       </View>

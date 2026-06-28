@@ -11,6 +11,11 @@ import {
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
+import {
+  formatDisplayDate, parseBirthDate, ageFromBirthDate, birthDateProfileFields,
+} from '../lib/profileDates';
+import { resolveProfileAvatarUrl } from '../lib/uploadImage';
+import BirthDateField from '../components/BirthDateField';
 import TeamProfileScreen from './TeamProfileScreen';
 import FullscreenImageModal from '../components/FullscreenImageModal';
 
@@ -121,9 +126,12 @@ export default function ProfilScreen({ refreshKey = 0 }) {
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (!profErr && prof) setProfile(prof);
+      if (profErr) {
+        console.warn('ProfilScreen profile error:', profErr.message);
+      }
+      setProfile(prof ?? null);
 
       const { data: mem } = await supabase
         .from('team_memberships')
@@ -220,10 +228,10 @@ export default function ProfilScreen({ refreshKey = 0 }) {
       last_name:               profile.last_name               ?? '',
       bio:                     profile.bio                     ?? '',
       avatar:                  profile.avatar                  ?? '',
+      birthDate:               parseBirthDate(profile.birth_date),
       // Player
       position:                profile.position                ?? '',
       jersey_number:           profile.jersey_number           ?? '',
-      age:                     profile.age    != null ? String(profile.age)    : '',
       gender:                  profile.gender                  ?? '',
       weight:                  profile.weight != null ? String(profile.weight) : '',
       height:                  profile.height != null ? String(profile.height) : '',
@@ -259,21 +267,39 @@ export default function ProfilScreen({ refreshKey = 0 }) {
     }
   };
 
+  const removeAvatar = () => {
+    updateDraft('avatar', '');
+  };
+
   const saveProfile = async () => {
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Nicht eingeloggt.');
 
+      let avatarUrl = null;
+      if (draft.avatar?.trim()) {
+        try {
+          avatarUrl = await resolveProfileAvatarUrl(user.id, draft.avatar);
+        } catch (uploadErr) {
+          const msg = uploadErr instanceof Error ? uploadErr.message : 'Unbekannter Upload-Fehler';
+          throw new Error(
+            msg.includes('row-level security') || msg.includes('row level security')
+              ? 'Bild-Upload blockiert. Bitte sql/storage_policies.sql in Supabase ausführen.'
+              : `Bild-Upload fehlgeschlagen: ${msg}`,
+          );
+        }
+      }
+
       const { error } = await supabase.from('profiles').update({
         first_name:              draft.first_name.trim()              || null,
         last_name:               draft.last_name.trim()               || null,
         bio:                     draft.bio.trim()                     || null,
-        avatar:                  draft.avatar                         || null,
+        avatar:                  avatarUrl,
+        ...birthDateProfileFields(draft.birthDate),
         // Player
         position:                draft.position.trim()                || null,
         jersey_number:           draft.jersey_number.trim()           || null,
-        age:                     draft.age    ? parseInt(draft.age, 10)    : null,
         gender:                  draft.gender.trim()                  || null,
         weight:                  draft.weight ? parseFloat(draft.weight)   : null,
         height:                  draft.height ? parseFloat(draft.height)   : null,
@@ -290,11 +316,14 @@ export default function ProfilScreen({ refreshKey = 0 }) {
       await fetchProfile();
       setIsEditing(false);
     } catch (err) {
+      const msg = err?.message ?? 'Unbekannter Fehler.';
       Alert.alert(
         'Speichern fehlgeschlagen',
-        err?.message?.includes('Network request failed')
-          ? 'Keine Verbindung. Bitte prüfe deine Internetverbindung.'
-          : err?.message ?? 'Unbekannter Fehler.',
+        msg.includes('row-level security') || msg.includes('row level security')
+          ? 'Zugriff verweigert (RLS). Bitte sql/profile_team_rls.sql in Supabase ausführen.'
+          : msg.includes('Network request failed')
+            ? 'Keine Verbindung. Bitte prüfe deine Internetverbindung.'
+            : msg,
       );
     } finally {
       setSaving(false);
@@ -329,6 +358,10 @@ export default function ProfilScreen({ refreshKey = 0 }) {
   const memberSince = profile.created_at
     ? new Date(profile.created_at).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
     : '–';
+  const displayAge = ageFromBirthDate(profile.birth_date) ?? (profile.age != null ? profile.age : null);
+  const displayBirthDate = profile.birth_date
+    ? formatDisplayDate(parseBirthDate(profile.birth_date))
+    : null;
 
   // ── View mode ──────────────────────────────────────────────────────────────
   if (!isEditing) {
@@ -562,7 +595,8 @@ export default function ProfilScreen({ refreshKey = 0 }) {
               <View style={styles.statsGrid}>
                 <StatCard icon={<Shield size={18} color="#1A2F6E" />}   label="Position"      value={profile.position} />
                 <StatCard icon={<Hash size={18} color="#1A2F6E" />}     label="Trikotnummer"  value={profile.jersey_number ? `#${profile.jersey_number}` : null} />
-                <StatCard icon={<Calendar size={18} color="#1A2F6E" />} label="Alter"         value={profile.age ? `${profile.age} Jahre` : null} />
+                <StatCard icon={<Calendar size={18} color="#1A2F6E" />} label="Geburtsdatum"  value={displayBirthDate} />
+                <StatCard icon={<Calendar size={18} color="#1A2F6E" />} label="Alter"         value={displayAge != null ? `${displayAge} Jahre` : null} />
                 <StatCard icon={<User size={18} color="#1A2F6E" />}     label="Geschlecht"    value={profile.gender} />
                 <StatCard icon={<Ruler size={18} color="#1A2F6E" />}    label="Größe"         value={profile.height ? `${profile.height} cm` : null} />
                 <StatCard icon={<Weight size={18} color="#1A2F6E" />}   label="Gewicht"       value={profile.weight ? `${profile.weight} kg` : null} />
@@ -591,6 +625,12 @@ export default function ProfilScreen({ refreshKey = 0 }) {
               <Text style={styles.infoLabel}>E-Mail</Text>
               <Text style={styles.infoValue} numberOfLines={1}>{email || '–'}</Text>
             </View>
+            {displayBirthDate ? (
+              <View style={[styles.infoRow, styles.infoRowBorder]}>
+                <Text style={styles.infoLabel}>Geburtsdatum</Text>
+                <Text style={styles.infoValue}>{displayBirthDate}</Text>
+              </View>
+            ) : null}
             <View style={[styles.infoRow, styles.infoRowBorder]}>
               <Text style={styles.infoLabel}>Mitglied seit</Text>
               <Text style={styles.infoValue}>{memberSince}</Text>
@@ -650,6 +690,11 @@ export default function ProfilScreen({ refreshKey = 0 }) {
             )}
           </View>
           <Text style={styles.avatarEditHint}>Foto ändern</Text>
+          {!!draft.avatar && (
+            <TouchableOpacity onPress={removeAvatar} style={styles.removeAvatarBtn} activeOpacity={0.7}>
+              <Text style={styles.removeAvatarText}>Bild entfernen</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* PERSÖNLICHE DATEN */}
@@ -658,6 +703,10 @@ export default function ProfilScreen({ refreshKey = 0 }) {
           <EditField label="Vorname"  value={draft.first_name}  onChangeText={(v) => updateDraft('first_name', v)}  placeholder="Max" />
           <EditField label="Nachname" value={draft.last_name}   onChangeText={(v) => updateDraft('last_name', v)}   placeholder="Mustermann" />
           <EditField label="Bio"      value={draft.bio}         onChangeText={(v) => updateDraft('bio', v)}         placeholder="Erzähl etwas über dich…" multiline />
+          <BirthDateField
+            value={draft.birthDate ?? null}
+            onChange={(birthDate) => updateDraft('birthDate', birthDate)}
+          />
         </View>
 
         {/* SPIELERINFORMATIONEN */}
@@ -699,9 +748,6 @@ export default function ProfilScreen({ refreshKey = 0 }) {
               </View>
 
               <View style={styles.twoCol}>
-                <View style={{ flex: 1 }}>
-                  <EditField label="Alter"     value={draft.age}    onChangeText={(v) => updateDraft('age', v)}    placeholder="z.B. 22"  keyboardType="numeric" />
-                </View>
                 <View style={{ flex: 1 }}>
                   <EditField label="Nationalität" value={draft.nationality} onChangeText={(v) => updateDraft('nationality', v)} placeholder="z.B. Deutsch" />
                 </View>
@@ -988,6 +1034,8 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: '#FFFFFF',
   },
   avatarEditHint: { color: MUTED, fontSize: 11, fontWeight: '600', marginTop: 8 },
+  removeAvatarBtn: { marginTop: 10, paddingVertical: 6, paddingHorizontal: 12 },
+  removeAvatarText: { color: R, fontSize: 13, fontWeight: '600' },
 
   editCard: {
     backgroundColor: BG, borderRadius: 16,
