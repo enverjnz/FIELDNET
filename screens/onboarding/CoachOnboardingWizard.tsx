@@ -19,6 +19,7 @@ import { ArrowLeft, ChevronRight, ChevronDown, X, Check } from 'lucide-react-nat
 import { supabase } from '../../lib/supabase';
 import { linkInvoiceCodeToTeam } from '../../lib/invoiceCode';
 import { ensureTeamStatsForTeam } from '../../lib/finishGame';
+import { getCurrentSeason } from '../../lib/leagueTeams';
 
 const B = '#1A2F6E';
 const R = '#C01830';
@@ -167,6 +168,16 @@ export default function CoachOnboardingWizard({ onBack, onSuccess, inviteCodeId 
 
       if (teamErr || !team?.id) throw teamErr ?? new Error('Team konnte nicht erstellt werden.');
       createdTeamId = team.id;
+
+      const currentSeason = await getCurrentSeason();
+      if (currentSeason && selectedLeagueId) {
+        const { error: ltErr } = await supabase.from('league_teams').insert({
+          team_id: team.id,
+          league_id: selectedLeagueId,
+          season_id: currentSeason.id,
+        });
+        if (ltErr) throw ltErr;
+      }
 
       setPipelineStep('manager');
       const { error: mgrErr } = await supabase.from('team_managers').insert({

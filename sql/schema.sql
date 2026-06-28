@@ -36,6 +36,7 @@ leagues,created_at,timestamp with time zone,NO,"timezone('utc'::text, now())"
 leagues,league_logo_url,text,YES,null
 leagues,region_id,integer,YES,null
 leagues,division,character varying,NO,'Herren'::character varying
+leagues,season_id,bigint,YES,null
 profile_stats,id,bigint,NO,null
 profile_stats,profile_id,uuid,NO,null
 profile_stats,seasons_played,integer,NO,1
@@ -66,10 +67,15 @@ profiles,coaching_experience,integer,YES,null
 profiles,coaching_role,text,YES,null
 profiles,coaching_license,text,YES,null
 profiles,coaching_specialization,text,YES,null
+profiles,birth_date,date,YES,null
 regions,id,integer,NO,nextval('regions_idregion_seq'::regclass)
 regions,name,character varying,NO,null
 regions,country_unit,text,YES,null
 regions,region_logo_url,text,YES,null
+seasons,id,bigint,NO,null
+seasons,created_at,timestamp with time zone,NO,"timezone('utc'::text, now())"
+seasons,year_label,character varying,NO,null
+seasons,is_current,boolean,NO,false
 team_invite_codes,id,uuid,NO,gen_random_uuid()
 team_invite_codes,code,text,NO,null
 team_invite_codes,is_used,boolean,NO,false
@@ -93,12 +99,6 @@ team_stats,losses,integer,NO,0
 team_stats,ties,integer,NO,0
 team_stats,points_for,integer,NO,0
 team_stats,points_against,integer,NO,0
-teams,id,uuid,NO,gen_random_uuid()
-teams,name,character varying,NO,null
-teams,avatar_teamlogo,text,YES,null
-teams,primary_colour,text,YES,null
-teams,secondary_colour,text,YES,null
-teams,town,text,YES,null
 
 --Policies
 Schema,Tabelle,Policy Name,Typ,Rollen,Operation,USING (Check für bestehende Zeilen),WITH CHECK (Check für neue Zeilen)

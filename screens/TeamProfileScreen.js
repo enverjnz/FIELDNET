@@ -13,6 +13,14 @@ import {
 import { supabase } from '../lib/supabase';
 import { resolveTeamLogoUrl } from '../lib/uploadImage';
 import { acceptMembershipRequest, rejectMembershipRequest } from '../lib/teamMembership';
+import {
+  fetchRegions,
+  fetchLeaguesForRegion,
+  getTeamLeagueAssignment,
+  getNextSeason,
+  saveTeamLeagueEnrollment,
+  countTeamOpenGames,
+} from '../lib/leagueTeams';
 import FullscreenImageModal from '../components/FullscreenImageModal';
 import TimelineScreen from './TimelineScreen';
 
@@ -189,6 +197,17 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
   const [leagues, setLeagues] = useState([]);
   const [leaguesLoading, setLeaguesLoading] = useState(false);
   const [leaguesError, setLeaguesError] = useState(null);
+  const [regions, setRegions] = useState([]);
+  const [regionsLoading, setRegionsLoading] = useState(false);
+  const [leagueAssignment, setLeagueAssignment] = useState(null);
+  const [nextSeasonLabel, setNextSeasonLabel] = useState(null);
+  const [leagueDraft, setLeagueDraft] = useState({
+    regionId: null,
+    leagueId: null,
+    enrollMode: 'current',
+  });
+  const [leagueSaving, setLeagueSaving] = useState(false);
+  const [leagueSuccess, setLeagueSuccess] = useState(null);
   const [teamStats, setTeamStats] = useState(null);
   const [timelineGameId, setTimelineGameId] = useState(null);
 
@@ -198,6 +217,12 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
     setRefreshing(false);
   };
 
+  useEffect(() => {
+    if (!leagueSuccess) return undefined;
+    const timer = setTimeout(() => setLeagueSuccess(null), 3200);
+    return () => clearTimeout(timer);
+  }, [leagueSuccess]);
+
   useEffect(() => { loadData(); }, [teamId]);
 
   useEffect(() => {
@@ -205,27 +230,49 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
 
     let cancelled = false;
     (async () => {
+      setRegionsLoading(true);
+      try {
+        const list = await fetchRegions();
+        if (!cancelled) setRegions(list);
+      } catch (e) {
+        if (!cancelled) console.warn('TeamProfile regions:', e?.message);
+      } finally {
+        if (!cancelled) setRegionsLoading(false);
+      }
+    })();
+
+    (async () => {
+      try {
+        const next = await getNextSeason();
+        if (!cancelled) setNextSeasonLabel(next?.year_label ?? null);
+      } catch {
+        if (!cancelled) setNextSeasonLabel(null);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [isEditing]);
+
+  useEffect(() => {
+    if (!isEditing || !leagueDraft.regionId) {
+      setLeagues([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+    (async () => {
       setLeaguesLoading(true);
       setLeaguesError(null);
       try {
-        const regionId = team?.regions_idregion ?? team?.regions?.id ?? null;
-        let query = supabase.from('leagues').select('id, name').order('name', { ascending: true });
-        if (regionId) query = query.eq('region_id', regionId);
-        const { data, error } = await query;
-        if (error) throw error;
-        let leagueList = data ?? [];
-        if (regionId && leagueList.length === 0) {
-          const { data: allLeagues } = await supabase
-            .from('leagues')
-            .select('id, name')
-            .order('name', { ascending: true });
-          leagueList = allLeagues ?? [];
+        const division = leagueAssignment?.division ?? 'Herren';
+        const list = await fetchLeaguesForRegion(leagueDraft.regionId, division);
+        if (cancelled) return;
+        const currentId = leagueDraft.leagueId;
+        if (currentId && leagueAssignment?.leagueName && !list.some((l) => l.id === currentId)) {
+          setLeagues([{ id: currentId, name: leagueAssignment.leagueName }, ...list]);
+        } else {
+          setLeagues(list);
         }
-        const currentId = team?.leagues?.id ?? team?.leagues_idleague;
-        if (currentId && team?.leagues?.name && !leagueList.some((l) => l.id === currentId)) {
-          leagueList = [{ id: currentId, name: team.leagues.name }, ...leagueList];
-        }
-        if (!cancelled) setLeagues(leagueList);
       } catch (e) {
         if (!cancelled) {
           setLeaguesError(e?.message ?? 'Ligen konnten nicht geladen werden.');
@@ -237,14 +284,14 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
     })();
 
     return () => { cancelled = true; };
-  }, [isEditing, team]);
+  }, [isEditing, leagueDraft.regionId, leagueAssignment?.division, leagueAssignment?.leagueName, leagueDraft.leagueId]);
 
   const loadData = async () => {
     setLoading(true);
     const [{ data: teamData }, { data: kaderData }, { data: gamesData }, { data: statsData }] = await Promise.all([
       supabase
         .from('teams')
-        .select('id, name, short_name, town, founding_year, avatar_teamlogo, training_location, training_times, website, tel, email, instagram, primary_colour, secondary_colour, leagues_idleague, regions_idregion, leagues:leagues_idleague(id, name), regions:regions_idregion(id, name)')
+        .select('id, name, short_name, town, founding_year, avatar_teamlogo, training_location, training_times, website, tel, email, instagram, primary_colour, secondary_colour')
         .eq('id', teamId)
         .maybeSingle(),
       supabase
@@ -262,7 +309,16 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
         .eq('team_id', teamId)
         .maybeSingle(),
     ]);
+
+    let assignment = null;
+    try {
+      assignment = await getTeamLeagueAssignment(teamId);
+    } catch (e) {
+      console.warn('TeamProfile league assignment:', e?.message);
+    }
+
     setTeam(teamData ?? null);
+    setLeagueAssignment(assignment);
     setKader(kaderData ?? []);
     setGames(gamesData ?? []);
     setTeamStats(statsData ?? null);
@@ -283,14 +339,20 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
       email:             team.email             ?? '',
       instagram:         team.instagram         ?? '',
       avatar_teamlogo:   team.avatar_teamlogo   ?? '',
-      leagueId:          team.leagues?.id ?? team.leagues_idleague ?? null,
     });
+    setLeagueDraft({
+      regionId: leagueAssignment?.regionId ?? null,
+      leagueId: leagueAssignment?.leagueId ?? null,
+      enrollMode: 'current',
+    });
+    setLeagueSuccess(null);
     setIsEditing(true);
   };
 
   const cancelEditing = () => {
     setIsEditing(false);
     setDraft({});
+    setLeagueDraft({ regionId: null, leagueId: null, enrollMode: 'current' });
   };
 
   const pickLogo = async () => {
@@ -345,7 +407,6 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
           email:             draft.email.trim()             || null,
           instagram:         draft.instagram.trim()         || null,
           avatar_teamlogo:   logoUrl,
-          leagues_idleague:  draft.leagueId || null,
         })
         .eq('id', teamId);
 
@@ -365,6 +426,77 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
     } finally {
       setSaving(false);
     }
+  };
+
+  const saveLeagueAssignment = async () => {
+    if (!leagueDraft.regionId) {
+      Alert.alert('Fehler', 'Bitte wähle einen Landesverband.');
+      return;
+    }
+    if (!leagueDraft.leagueId) {
+      Alert.alert('Fehler', 'Bitte wähle eine Liga.');
+      return;
+    }
+
+    const leagueChanged = leagueDraft.leagueId !== leagueAssignment?.leagueId
+      || leagueDraft.regionId !== leagueAssignment?.regionId;
+
+    if (leagueDraft.enrollMode === 'current' && !leagueChanged) {
+      Alert.alert('Hinweis', 'Es wurden keine Änderungen vorgenommen.');
+      return;
+    }
+
+    const proceedSave = async () => {
+      setLeagueSaving(true);
+      try {
+        await saveTeamLeagueEnrollment(
+          teamId,
+          leagueDraft.leagueId,
+          leagueDraft.enrollMode,
+        );
+        setLeagueSuccess('Liga erfolgreich aktualisiert!');
+        if (leagueDraft.enrollMode === 'current') {
+          const assignment = await getTeamLeagueAssignment(teamId);
+          setLeagueAssignment(assignment);
+          setLeagueDraft({
+            regionId: assignment?.regionId ?? leagueDraft.regionId,
+            leagueId: assignment?.leagueId ?? leagueDraft.leagueId,
+            enrollMode: 'current',
+          });
+        }
+      } catch (error) {
+        const msg = error?.message ?? 'Speichern fehlgeschlagen.';
+        Alert.alert(
+          'Fehler',
+          msg.includes('row-level security') || msg.includes('row level security')
+            ? 'Zugriff verweigert (RLS). Bitte sql/league_teams_rls.sql in Supabase ausführen.'
+            : msg,
+        );
+      } finally {
+        setLeagueSaving(false);
+      }
+    };
+
+    if (leagueDraft.enrollMode === 'current' && leagueChanged) {
+      try {
+        const openGames = await countTeamOpenGames(teamId);
+        if (openGames > 0) {
+          Alert.alert(
+            'Liga wechseln',
+            `Dein Team hat ${openGames} geplante oder laufende Spiele. Diese bleiben bestehen, erscheinen aber in der Tabelle der neuen Liga erst nach dem Wechsel.`,
+            [
+              { text: 'Abbrechen', style: 'cancel' },
+              { text: 'Trotzdem speichern', onPress: proceedSave },
+            ],
+          );
+          return;
+        }
+      } catch {
+        // continue without blocking
+      }
+    }
+
+    await proceedSave();
   };
 
   const removePlayer = (membershipId, playerName) => {
@@ -480,6 +612,12 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
         showsVerticalScrollIndicator={false}
         refreshControl={!isEditing ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={B} colors={[B]} /> : undefined}
       >
+        {!!leagueSuccess && (
+          <View style={styles.successToast}>
+            <Check size={16} color="#FFFFFF" />
+            <Text style={styles.successToastText}>{leagueSuccess}</Text>
+          </View>
+        )}
         {/* TEAM LOGO */}
         <View style={styles.logoSection}>
           {isEditing ? (
@@ -535,13 +673,6 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
               <EditField label="KURZNAME" value={draft.short_name} onChangeText={(v) => setDraft(p => ({ ...p, short_name: v }))} placeholder="z. B. RAMS" />
               <EditField label="STADT" value={draft.town} onChangeText={(v) => setDraft(p => ({ ...p, town: v }))} placeholder="z. B. Nürnberg" />
               <EditField label="GRÜNDUNGSJAHR" value={draft.founding_year} onChangeText={(v) => setDraft(p => ({ ...p, founding_year: v }))} placeholder="z. B. 2005" keyboardType="numeric" />
-              <LeagueSelect
-                value={draft.leagueId}
-                onChange={(id) => setDraft((p) => ({ ...p, leagueId: id }))}
-                options={leagues.map((l) => ({ value: l.id, label: l.name }))}
-                loading={leaguesLoading}
-                error={leaguesError}
-              />
             </>
           ) : (
             <>
@@ -549,8 +680,106 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
               <InfoRow icon={<Trophy size={16} color={B} />} label="Kurzname" value={team?.short_name} />
               <InfoRow icon={<MapPin size={16} color={B} />} label="Stadt" value={team?.town} />
               <InfoRow icon={<Clock size={16} color={B} />} label="Gründungsjahr" value={team?.founding_year ? String(team.founding_year) : null} />
-              <InfoRow icon={<Users size={16} color={B} />} label="Liga" value={team?.leagues?.name} />
-              <InfoRow icon={<MapPin size={16} color={B} />} label="Landesverband" value={team?.regions?.name} />
+            </>
+          )}
+        </View>
+
+        {/* LIGA & VERBAND */}
+        <Text style={styles.sectionTitle}>LIGA & VERBAND VERWALTEN</Text>
+        <View style={styles.card}>
+          {isEditing ? (
+            <>
+              <Text style={styles.leagueSectionHint}>
+                {leagueAssignment?.division
+                  ? `Sparte: ${leagueAssignment.division}`
+                  : 'Sparte: Herren'}
+                {leagueAssignment?.seasonLabel ? ` · Saison ${leagueAssignment.seasonLabel}` : ''}
+              </Text>
+
+              <LeagueSelect
+                label="REGION / LANDESVERBAND"
+                value={leagueDraft.regionId}
+                onChange={(id) => setLeagueDraft((p) => ({
+                  ...p,
+                  regionId: id,
+                  leagueId: id === p.regionId ? p.leagueId : null,
+                }))}
+                options={regions.map((r) => ({
+                  value: r.id,
+                  label: r.country_unit || r.name,
+                }))}
+                loading={regionsLoading}
+                placeholder="Landesverband wählen…"
+              />
+
+              <LeagueSelect
+                label="LIGA"
+                value={leagueDraft.leagueId}
+                onChange={(id) => setLeagueDraft((p) => ({ ...p, leagueId: id }))}
+                options={leagues.map((l) => ({ value: l.id, label: l.name }))}
+                loading={leaguesLoading}
+                error={leaguesError}
+                disabled={!leagueDraft.regionId}
+                placeholder={leagueDraft.regionId ? 'Liga wählen…' : 'Zuerst Region wählen'}
+              />
+
+              <View style={styles.enrollModeWrap}>
+                <Text style={styles.fieldLabel}>SPEICHERMODUS</Text>
+                <TouchableOpacity
+                  style={[styles.enrollModeOption, leagueDraft.enrollMode === 'current' && styles.enrollModeOptionActive]}
+                  onPress={() => setLeagueDraft((p) => ({ ...p, enrollMode: 'current' }))}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.enrollRadio, leagueDraft.enrollMode === 'current' && styles.enrollRadioActive]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.enrollModeTitle}>Liga für aktuelle Saison korrigieren</Text>
+                    <Text style={styles.enrollModeSub}>Ändert die Zuordnung sofort für die laufende Saison.</Text>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.enrollModeOption,
+                    leagueDraft.enrollMode === 'next' && styles.enrollModeOptionActive,
+                    !nextSeasonLabel && styles.enrollModeOptionDisabled,
+                  ]}
+                  onPress={() => nextSeasonLabel && setLeagueDraft((p) => ({ ...p, enrollMode: 'next' }))}
+                  activeOpacity={nextSeasonLabel ? 0.8 : 1}
+                  disabled={!nextSeasonLabel}
+                >
+                  <View style={[styles.enrollRadio, leagueDraft.enrollMode === 'next' && styles.enrollRadioActive]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.enrollModeTitle}>
+                      Für neue Saison einschreiben
+                      {nextSeasonLabel ? ` (${nextSeasonLabel})` : ''}
+                    </Text>
+                    <Text style={styles.enrollModeSub}>
+                      {nextSeasonLabel
+                        ? 'Behält die historische Zuordnung der aktuellen Saison bei.'
+                        : 'Keine kommende Saison in der Datenbank hinterlegt.'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.leagueSaveBtn, leagueSaving && styles.leagueSaveBtnDisabled]}
+                onPress={saveLeagueAssignment}
+                disabled={leagueSaving}
+                activeOpacity={0.85}
+              >
+                {leagueSaving
+                  ? <ActivityIndicator size="small" color="#FFFFFF" />
+                  : <Text style={styles.leagueSaveBtnText}>Liga speichern</Text>}
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <InfoRow icon={<MapPin size={16} color={B} />} label="Landesverband" value={leagueAssignment?.regionLabel || '–'} />
+              <InfoRow icon={<Trophy size={16} color={B} />} label="Liga" value={leagueAssignment?.leagueName || '–'} />
+              <InfoRow icon={<Calendar size={16} color={B} />} label="Saison" value={leagueAssignment?.seasonLabel || '–'} />
+              {leagueAssignment?.division ? (
+                <InfoRow icon={<Users size={16} color={B} />} label="Sparte" value={leagueAssignment.division} />
+              ) : null}
             </>
           )}
         </View>
@@ -829,24 +1058,33 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
   );
 }
 
-function LeagueSelect({ value, onChange, options, loading, error }) {
+function LeagueSelect({
+  label = 'LIGA',
+  value,
+  onChange,
+  options,
+  loading,
+  error,
+  disabled = false,
+  placeholder = 'Liga auswählen…',
+}) {
   const [open, setOpen] = useState(false);
   const selected = options.find((o) => o.value === value);
 
   return (
     <View style={styles.fieldWrap}>
-      <Text style={styles.fieldLabel}>LIGA</Text>
+      <Text style={styles.fieldLabel}>{label}</Text>
       <TouchableOpacity
-        style={[styles.leagueTrigger, error && styles.leagueTriggerError]}
-        onPress={() => !loading && setOpen(true)}
+        style={[styles.leagueTrigger, error && styles.leagueTriggerError, disabled && styles.leagueTriggerDisabled]}
+        onPress={() => !loading && !disabled && setOpen(true)}
         activeOpacity={0.8}
-        disabled={loading}
+        disabled={loading || disabled}
       >
         {loading ? (
           <ActivityIndicator size="small" color={B} style={{ flex: 1 }} />
         ) : (
           <Text style={[styles.leagueTriggerText, !selected && styles.leaguePlaceholder]} numberOfLines={1}>
-            {selected?.label ?? 'Liga auswählen…'}
+            {selected?.label ?? placeholder}
           </Text>
         )}
         <ChevronDown size={18} color={MUTED} />
@@ -858,7 +1096,7 @@ function LeagueSelect({ value, onChange, options, loading, error }) {
           <TouchableOpacity style={styles.leagueBackdrop} activeOpacity={1} onPress={() => setOpen(false)} />
           <View style={styles.leagueSheet}>
             <View style={styles.leagueSheetHeader}>
-              <Text style={styles.leagueSheetTitle}>Liga wählen</Text>
+              <Text style={styles.leagueSheetTitle}>{label}</Text>
               <TouchableOpacity onPress={() => setOpen(false)} hitSlop={8}>
                 <X size={22} color={B} />
               </TouchableOpacity>
@@ -968,6 +1206,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 11, minHeight: 44,
   },
   leagueTriggerError: { borderColor: R },
+  leagueTriggerDisabled: { opacity: 0.55 },
   leagueTriggerText: { flex: 1, color: B, fontSize: 14, fontWeight: '600', marginRight: 8 },
   leaguePlaceholder: { color: '#9CA3AF', fontWeight: '400' },
   leagueError: { color: R, fontSize: 11, marginTop: 4 },
@@ -993,6 +1232,42 @@ const styles = StyleSheet.create({
   leagueItemText: { color: B, fontSize: 15, fontWeight: '500', flex: 1 },
   leagueItemTextActive: { fontWeight: '800' },
   leagueEmpty: { color: MUTED, fontSize: 14, textAlign: 'center', padding: 24 },
+
+  leagueSectionHint: {
+    color: MUTED, fontSize: 12, fontWeight: '600',
+    marginBottom: 12, lineHeight: 18,
+  },
+  enrollModeWrap: { marginTop: 4, marginBottom: 12, gap: 8 },
+  enrollModeOption: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+    backgroundColor: '#FFFFFF', borderRadius: 12,
+    borderWidth: 1.5, borderColor: BORDER,
+    padding: 12,
+  },
+  enrollModeOptionActive: { borderColor: B, backgroundColor: '#FFFFFF' },
+  enrollModeOptionDisabled: { opacity: 0.5 },
+  enrollRadio: {
+    width: 18, height: 18, borderRadius: 9,
+    borderWidth: 2, borderColor: BORDER, marginTop: 2,
+  },
+  enrollRadioActive: { borderColor: R, backgroundColor: R },
+  enrollModeTitle: { color: B, fontSize: 13, fontWeight: '800', marginBottom: 2 },
+  enrollModeSub: { color: MUTED, fontSize: 11, lineHeight: 16 },
+  leagueSaveBtn: {
+    backgroundColor: R, borderRadius: 12,
+    paddingVertical: 14, alignItems: 'center', justifyContent: 'center',
+    minHeight: 48,
+  },
+  leagueSaveBtnDisabled: { opacity: 0.7 },
+  leagueSaveBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+
+  successToast: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: GREEN, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+    marginBottom: 12,
+  },
+  successToastText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700', flex: 1 },
 
   kaderHeader: {
     flexDirection: 'row', justifyContent: 'space-between',
