@@ -31,6 +31,9 @@ export type TickerGame = {
   home_team?: HomeTeam | null;
 };
 
+const GAME_SELECT =
+  'id, home_team_id, away_team_name, home_score, away_score, status, game_code, game_date, game_time, location, created_by, home_team:home_team_id(id, name, short_name)';
+
 function toTickerGame(row: GameRow): TickerGame {
   const homeTeam = Array.isArray(row.home_team) ? row.home_team[0] ?? null : row.home_team;
 
@@ -68,9 +71,7 @@ export async function validateTickerAccess(
 
   const { data: game, error: gameError } = await supabase
     .from('games')
-    .select(
-      'id, home_team_id, away_team_name, home_score, away_score, status, game_code, game_date, game_time, location, created_by, home_team:home_team_id(id, name, short_name)',
-    )
+    .select(GAME_SELECT)
     .ilike('game_code', trimmed)
     .maybeSingle();
 
@@ -114,4 +115,15 @@ export async function validateTickerAccess(
   return {
     error: 'Du bist kein berechtigtes Teammitglied für dieses Spiel.',
   };
+}
+
+export async function fetchTickerGameById(gameId: number): Promise<TickerGame | null> {
+  const { data, error } = await supabase
+    .from('games')
+    .select(GAME_SELECT)
+    .eq('id', gameId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return toTickerGame(data as GameRow);
 }

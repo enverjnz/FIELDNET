@@ -25,7 +25,7 @@ const STATUS_CONFIG = {
   cancelled: { label: 'Abgesagt',   color: R,         bg: '#FFF0F2' },
 };
 
-export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onTeamLeft }) {
+export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onOpenLiveTicker, onTeamLeft }) {
   const [team, setTeam]             = useState(null);
   const [games, setGames]           = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
@@ -406,8 +406,8 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onTe
             const isLive   = statusNorm === 'live';
             const isDone   = statusNorm === 'finished';
 
-            return (
-              <View key={game.id} style={styles.gameCard}>
+            const cardContent = (
+              <>
                 <View style={styles.gameCardTop}>
                   <View style={[styles.gameBadge, { backgroundColor: cfg.bg }]}>
                     {isLive && <View style={styles.liveDot} />}
@@ -415,7 +415,10 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onTe
                   </View>
                   <TouchableOpacity
                     style={styles.deleteGameBtn}
-                    onPress={() => deleteGame(game)}
+                    onPress={(e) => {
+                      e?.stopPropagation?.();
+                      deleteGame(game);
+                    }}
                     disabled={deletingGameId === game.id}
                     hitSlop={8}
                     activeOpacity={0.75}
@@ -427,7 +430,6 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onTe
                   </TouchableOpacity>
                 </View>
 
-                {/* Teams & Score */}
                 <View style={styles.gameTeamsRow}>
                   <Text style={styles.gameTeam} numberOfLines={1}>
                     {game.is_home_game ? team?.short_name ?? team?.name : opponent}
@@ -444,7 +446,6 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onTe
                   </Text>
                 </View>
 
-                {/* Meta info */}
                 <View style={styles.gameMeta}>
                   {dateStr ? (
                     <View style={styles.gameMetaItem}>
@@ -465,7 +466,10 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onTe
                       <Hash size={12} color={MUTED} />
                       <Text style={[styles.gameMetaText, { fontWeight: '700', color: B }]}>{game.game_code}</Text>
                       <TouchableOpacity
-                        onPress={() => copyCode(game.game_code)}
+                        onPress={(e) => {
+                          e?.stopPropagation?.();
+                          copyCode(game.game_code);
+                        }}
                         hitSlop={8}
                         style={[styles.copyBtn, copiedCode === game.game_code && styles.copyBtnDone]}
                       >
@@ -478,18 +482,47 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onTe
                   ) : null}
                 </View>
 
-                {(isDone || isLive) && (
+                {isLive && onOpenLiveTicker ? (
+                  <View style={styles.timelineLink}>
+                    <Zap size={12} color={R} />
+                    <Text style={styles.timelineLinkText}>Live-Ticker öffnen ➔</Text>
+                  </View>
+                ) : null}
+
+                {isDone || isLive ? (
                   <TouchableOpacity
-                    style={styles.timelineLink}
-                    onPress={() => {
+                    style={[styles.timelineLink, isLive && styles.timelineLinkSecondary]}
+                    onPress={(e) => {
+                      e?.stopPropagation?.();
                       setTimelineGameId(game.id);
                       setActiveScreen('timeline');
                     }}
                     activeOpacity={0.75}
                   >
-                    <Text style={styles.timelineLinkText}>Spielverlauf ansehen ➔</Text>
+                    <Text style={[styles.timelineLinkText, isLive && styles.timelineLinkTextMuted]}>
+                      Spielverlauf ansehen ➔
+                    </Text>
                   </TouchableOpacity>
-                )}
+                ) : null}
+              </>
+            );
+
+            if (isLive && onOpenLiveTicker) {
+              return (
+                <TouchableOpacity
+                  key={game.id}
+                  style={[styles.gameCard, styles.gameCardLive]}
+                  onPress={() => onOpenLiveTicker(game.id)}
+                  activeOpacity={0.85}
+                >
+                  {cardContent}
+                </TouchableOpacity>
+              );
+            }
+
+            return (
+              <View key={game.id} style={styles.gameCard}>
+                {cardContent}
               </View>
             );
           })
@@ -598,6 +631,11 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: BORDER,
     padding: 14, marginBottom: 10,
   },
+  gameCardLive: {
+    borderColor: '#10B981',
+    borderWidth: 2,
+    backgroundColor: '#FFFFFF',
+  },
   gameCardTop: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', marginBottom: 10,
@@ -675,6 +713,15 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: BORDER,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  timelineLinkSecondary: {
+    marginTop: 4,
+    paddingTop: 4,
+    borderTopWidth: 0,
   },
   timelineLinkText: { color: R, fontSize: 11, fontWeight: '800', letterSpacing: 0.4 },
+  timelineLinkTextMuted: { color: MUTED },
 });

@@ -7,12 +7,19 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import {
   ArrowLeft, Edit2, Save, X, Users, Phone,
-  Mail, Globe, Instagram, MapPin, Clock, Trophy,
+  Mail, Globe, AtSign, MapPin, Clock, Trophy,
   Check, Trash2, ChevronDown, Calendar, Camera,
+  UserPlus, UserMinus,
 } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { resolveTeamLogoUrl } from '../lib/uploadImage';
 import { acceptMembershipRequest, rejectMembershipRequest } from '../lib/teamMembership';
+import {
+  followTeam,
+  unfollowTeam,
+  isUserFollowingTeam,
+  isUserTeamManager,
+} from '../lib/teamFollowers';
 import {
   fetchRegions,
   fetchLeaguesForRegion,
@@ -169,7 +176,7 @@ function EditField({ label, value, onChangeText, placeholder, keyboardType = 'de
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
         style={[styles.fieldInput, multiline && styles.fieldInputMulti]}
-        value={value}
+        value={value ?? ''}
         onChangeText={onChangeText}
         placeholder={placeholder ?? ''}
         placeholderTextColor="#9CA3AF"
@@ -177,6 +184,78 @@ function EditField({ label, value, onChangeText, placeholder, keyboardType = 'de
         multiline={multiline}
         numberOfLines={multiline ? 3 : 1}
       />
+    </View>
+  );
+}
+
+function LeagueSelect({
+  label = 'LIGA',
+  value,
+  onChange,
+  options,
+  loading,
+  error,
+  disabled = false,
+  placeholder = 'Liga auswählen…',
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <View style={styles.fieldWrap}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TouchableOpacity
+        style={[styles.leagueTrigger, error && styles.leagueTriggerError, disabled && styles.leagueTriggerDisabled]}
+        onPress={() => !loading && !disabled && setOpen(true)}
+        activeOpacity={0.8}
+        disabled={loading || disabled}
+      >
+        {loading ? (
+          <ActivityIndicator size="small" color={B} style={{ flex: 1 }} />
+        ) : (
+          <Text style={[styles.leagueTriggerText, !selected && styles.leaguePlaceholder]} numberOfLines={1}>
+            {selected?.label ?? placeholder}
+          </Text>
+        )}
+        <ChevronDown size={18} color={MUTED} />
+      </TouchableOpacity>
+      {!!error && <Text style={styles.leagueError}>{error}</Text>}
+
+      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
+        <View style={styles.leagueOverlay}>
+          <TouchableOpacity style={styles.leagueBackdrop} activeOpacity={1} onPress={() => setOpen(false)} />
+          <View style={styles.leagueSheet}>
+            <View style={styles.leagueSheetHeader}>
+              <Text style={styles.leagueSheetTitle}>{label}</Text>
+              <TouchableOpacity onPress={() => setOpen(false)} hitSlop={8}>
+                <X size={22} color={B} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.leagueList} keyboardShouldPersistTaps="handled">
+              {options.length === 0 ? (
+                <Text style={styles.leagueEmpty}>Keine Ligen verfügbar.</Text>
+              ) : (
+                options.map((option) => {
+                  const active = option.value === value;
+                  return (
+                    <TouchableOpacity
+                      key={String(option.value)}
+                      style={[styles.leagueItem, active && styles.leagueItemActive]}
+                      onPress={() => { onChange(option.value); setOpen(false); }}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[styles.leagueItemText, active && styles.leagueItemTextActive]}>
+                        {option.label}
+                      </Text>
+                      {active && <Check size={18} color={R} />}
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -210,6 +289,11 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
   const [leagueSuccess, setLeagueSuccess] = useState(null);
   const [teamStats, setTeamStats] = useState(null);
   const [timelineGameId, setTimelineGameId] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [showFollowButton, setShowFollowButton] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
+  const [followMessage, setFollowMessage] = useState(null);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -223,7 +307,13 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
     return () => clearTimeout(timer);
   }, [leagueSuccess]);
 
-  useEffect(() => { loadData(); }, [teamId]);
+  useEffect(() => {
+    if (!followMessage) return undefined;
+    const timer = setTimeout(() => setFollowMessage(null), 3200);
+    return () => clearTimeout(timer);
+  }, [followMessage]);
+
+  useEffect(() => { loadData(); }, [teamId, readOnly]);
 
   useEffect(() => {
     if (!isEditing) return;
@@ -322,7 +412,58 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
     setKader(kaderData ?? []);
     setGames(gamesData ?? []);
     setTeamStats(statsData ?? null);
+    await loadFollowState();
     setLoading(false);
+  };
+
+  const loadFollowState = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setCurrentUserId(null);
+        setIsFollowing(false);
+        setShowFollowButton(false);
+        return;
+      }
+
+      setCurrentUserId(user.id);
+      const isManager = !readOnly ? true : await isUserTeamManager(user.id, teamId);
+      const canFollow = !isManager;
+
+      setShowFollowButton(canFollow);
+      if (canFollow) {
+        const following = await isUserFollowingTeam(user.id, teamId);
+        setIsFollowing(following);
+      } else {
+        setIsFollowing(false);
+      }
+    } catch (e) {
+      console.warn('TeamProfile follow state:', e?.message);
+      setShowFollowButton(false);
+      setIsFollowing(false);
+    }
+  };
+
+  const toggleFollow = async () => {
+    if (!currentUserId || followBusy || !showFollowButton) return;
+
+    setFollowBusy(true);
+    try {
+      if (isFollowing) {
+        await unfollowTeam(currentUserId, teamId);
+        setIsFollowing(false);
+        setFollowMessage('Du folgst diesem Team nicht mehr.');
+      } else {
+        await followTeam(currentUserId, teamId);
+        setIsFollowing(true);
+        const teamLabel = team?.short_name ?? team?.name ?? 'dem Team';
+        setFollowMessage(`Du folgst jetzt ${teamLabel}.`);
+      }
+    } catch (err) {
+      Alert.alert('Fehler', err?.message ?? 'Aktion konnte nicht ausgeführt werden.');
+    } finally {
+      setFollowBusy(false);
+    }
   };
 
   const startEditing = () => {
@@ -612,10 +753,10 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
         showsVerticalScrollIndicator={false}
         refreshControl={!isEditing ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={B} colors={[B]} /> : undefined}
       >
-        {!!leagueSuccess && (
+        {!!(leagueSuccess || followMessage) && (
           <View style={styles.successToast}>
             <Check size={16} color="#FFFFFF" />
-            <Text style={styles.successToastText}>{leagueSuccess}</Text>
+            <Text style={styles.successToastText}>{leagueSuccess || followMessage}</Text>
           </View>
         )}
         {/* TEAM LOGO */}
@@ -663,6 +804,29 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
             </View>
           ))}
         </View>
+
+        {showFollowButton && !isEditing && (
+          <TouchableOpacity
+            style={[styles.followBtn, isFollowing && styles.followBtnOutline]}
+            onPress={toggleFollow}
+            disabled={followBusy}
+            activeOpacity={0.85}
+          >
+            {followBusy ? (
+              <ActivityIndicator size="small" color={isFollowing ? B : '#FFFFFF'} />
+            ) : (
+              <>
+                {isFollowing
+                  ? <UserMinus size={18} color={B} />
+                  : <UserPlus size={18} color="#FFFFFF" />
+                }
+                <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextOutline]}>
+                  {isFollowing ? 'Entfolgen' : 'Folgen'}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
 
         {/* ALLGEMEINE INFOS */}
         <Text style={styles.sectionTitle}>ALLGEMEINE INFOS</Text>
@@ -815,7 +979,7 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
               <InfoRow icon={<Phone size={16} color={B} />} label="Telefon" value={team?.tel} />
               <InfoRow icon={<Mail size={16} color={B} />} label="E-Mail" value={team?.email} />
               <InfoRow icon={<Globe size={16} color={B} />} label="Webseite" value={team?.website} />
-              <InfoRow icon={<Instagram size={16} color={B} />} label="Instagram" value={team?.instagram} />
+              <InfoRow icon={<AtSign size={16} color={B} />} label="Instagram" value={team?.instagram} />
             </>
           )}
         </View>
@@ -1058,78 +1222,6 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
   );
 }
 
-function LeagueSelect({
-  label = 'LIGA',
-  value,
-  onChange,
-  options,
-  loading,
-  error,
-  disabled = false,
-  placeholder = 'Liga auswählen…',
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = options.find((o) => o.value === value);
-
-  return (
-    <View style={styles.fieldWrap}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TouchableOpacity
-        style={[styles.leagueTrigger, error && styles.leagueTriggerError, disabled && styles.leagueTriggerDisabled]}
-        onPress={() => !loading && !disabled && setOpen(true)}
-        activeOpacity={0.8}
-        disabled={loading || disabled}
-      >
-        {loading ? (
-          <ActivityIndicator size="small" color={B} style={{ flex: 1 }} />
-        ) : (
-          <Text style={[styles.leagueTriggerText, !selected && styles.leaguePlaceholder]} numberOfLines={1}>
-            {selected?.label ?? placeholder}
-          </Text>
-        )}
-        <ChevronDown size={18} color={MUTED} />
-      </TouchableOpacity>
-      {!!error && <Text style={styles.leagueError}>{error}</Text>}
-
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <View style={styles.leagueOverlay}>
-          <TouchableOpacity style={styles.leagueBackdrop} activeOpacity={1} onPress={() => setOpen(false)} />
-          <View style={styles.leagueSheet}>
-            <View style={styles.leagueSheetHeader}>
-              <Text style={styles.leagueSheetTitle}>{label}</Text>
-              <TouchableOpacity onPress={() => setOpen(false)} hitSlop={8}>
-                <X size={22} color={B} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.leagueList} keyboardShouldPersistTaps="handled">
-              {options.length === 0 ? (
-                <Text style={styles.leagueEmpty}>Keine Ligen verfügbar.</Text>
-              ) : (
-                options.map((option) => {
-                  const active = option.value === value;
-                  return (
-                    <TouchableOpacity
-                      key={String(option.value)}
-                      style={[styles.leagueItem, active && styles.leagueItemActive]}
-                      onPress={() => { onChange(option.value); setOpen(false); }}
-                      activeOpacity={0.75}
-                    >
-                      <Text style={[styles.leagueItemText, active && styles.leagueItemTextActive]}>
-                        {option.label}
-                      </Text>
-                      {active && <Check size={18} color={R} />}
-                    </TouchableOpacity>
-                  );
-                })
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-    </View>
-  );
-}
-
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -1357,6 +1449,18 @@ const styles = StyleSheet.create({
     backgroundColor: R, borderRadius: 14, paddingVertical: 16, marginTop: 8,
   },
   joinBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+
+  followBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: B, borderRadius: 14, paddingVertical: 14,
+    marginBottom: 18, minHeight: 50,
+  },
+  followBtnOutline: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2, borderColor: B,
+  },
+  followBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  followBtnTextOutline: { color: B },
 
   emptyGames: {
     alignItems: 'center', paddingVertical: 28, gap: 10,

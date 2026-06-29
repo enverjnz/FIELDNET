@@ -7,6 +7,7 @@ import { Trophy, Plus, RotateCcw, ArrowLeft, Flag } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { insertTickerEvents } from '../lib/tickerEvents';
 import { finishGame } from '../lib/finishGame';
+import { fetchTickerGameById } from '../lib/validateTickerAccess';
 
 const B = '#1A2F6E';
 const R = '#C01830';
@@ -21,7 +22,7 @@ const QUARTERS = [
   { key: '4', label: 'Q4' },
 ];
 
-export default function TickerScreen({ game, onBack, onExit }) {
+export default function TickerScreen({ game, onBack, onExit, onGameUpdated }) {
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [teamRoster, setTeamRoster] = useState([]);
@@ -79,6 +80,19 @@ export default function TickerScreen({ game, onBack, onExit }) {
     setScoreHome(game?.home_score ?? 0);
     setScoreAway(game?.away_score ?? 0);
   }, [game?.id, game?.home_score, game?.away_score]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!game?.id) return;
+      const fresh = await fetchTickerGameById(game.id);
+      if (cancelled || !fresh) return;
+      setScoreHome(fresh.home_score ?? 0);
+      setScoreAway(fresh.away_score ?? 0);
+      onGameUpdated?.(fresh);
+    })();
+    return () => { cancelled = true; };
+  }, [game?.id]);
 
   const queueEvent = (eventType, points) => {
     const newHome = selectedTeam === 'home' ? scoreHome + points : scoreHome;
@@ -146,6 +160,12 @@ export default function TickerScreen({ game, onBack, onExit }) {
 
       if (error) throw error;
       setEventQueue([]);
+      onGameUpdated?.({
+        ...game,
+        home_score: scoreHome,
+        away_score: scoreAway,
+        status: 'live',
+      });
       Alert.alert('Gesendet', `Spielstand aktualisiert: ${scoreHome}:${scoreAway}`);
     } catch (err) {
       Alert.alert(
@@ -178,6 +198,12 @@ export default function TickerScreen({ game, onBack, onExit }) {
             try {
               await finishGame(game.id, scoreHome, scoreAway, eventQueue, selectedQuarter);
               setEventQueue([]);
+              onGameUpdated?.({
+                ...game,
+                home_score: scoreHome,
+                away_score: scoreAway,
+                status: 'finished',
+              });
               Alert.alert(
                 'Spiel beendet',
                 'Endstand gespeichert. Stats und Spielverlauf wurden aktualisiert.',
@@ -205,7 +231,7 @@ export default function TickerScreen({ game, onBack, onExit }) {
       <View style={styles.topBar}>
         <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
           <ArrowLeft size={20} color={B} />
-          <Text style={styles.backText}>Code</Text>
+          <Text style={styles.backText}>Zurück</Text>
         </TouchableOpacity>
         <View style={styles.topBarCenter}>
           <Text style={styles.topBarTitle} numberOfLines={1}>Live-Ticker</Text>

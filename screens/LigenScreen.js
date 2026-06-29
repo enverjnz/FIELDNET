@@ -13,6 +13,9 @@ const BG = '#F0F4FF';
 const BORDER = '#D1D8F0';
 const MUTED = '#6B7280';
 
+/** Adult/flag divisions shown in LigenScreen (add 'Jugend' here to re-enable youth leagues). */
+const ALLOWED_DIVISIONS = ['Herren', 'Damen', 'Flag'];
+
 function FilterDropdown({
   label,
   placeholder,
@@ -207,6 +210,7 @@ export default function LigenScreen() {
           .from('leagues')
           .select('id, name, division')
           .eq('region_id', selectedRegionId)
+          .in('division', ALLOWED_DIVISIONS)
           .order('name', { ascending: true });
         if (error) throw error;
         if (cancelled) return;

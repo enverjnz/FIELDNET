@@ -169,6 +169,13 @@ export default function CoachOnboardingWizard({ onBack, onSuccess, inviteCodeId 
       if (teamErr || !team?.id) throw teamErr ?? new Error('Team konnte nicht erstellt werden.');
       createdTeamId = team.id;
 
+      setPipelineStep('manager');
+      const { error: mgrErr } = await supabase.from('team_managers').insert({
+        profile_id: user.id,
+        team_id: team.id,
+      });
+      if (mgrErr) throw mgrErr;
+
       const currentSeason = await getCurrentSeason();
       if (currentSeason && selectedLeagueId) {
         const { error: ltErr } = await supabase.from('league_teams').insert({
@@ -178,13 +185,6 @@ export default function CoachOnboardingWizard({ onBack, onSuccess, inviteCodeId 
         });
         if (ltErr) throw ltErr;
       }
-
-      setPipelineStep('manager');
-      const { error: mgrErr } = await supabase.from('team_managers').insert({
-        profile_id: user.id,
-        team_id: team.id,
-      });
-      if (mgrErr) throw mgrErr;
 
       setPipelineStep('profile');
       const { error: profErr } = await supabase

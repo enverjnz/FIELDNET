@@ -11,7 +11,7 @@ import { Trophy, Bell, Search,
   User, ChevronRight, Home, 
   LayoutGrid, CalendarDays, 
   MessageSquare, Users, 
-  PlusCircle, Menu, X, LogOut } from 'lucide-react-native';
+  PlusCircle, Menu, X, LogOut, Zap } from 'lucide-react-native';
 
 //Screen imports
 import styles from './HomeScreen.styles';
@@ -21,6 +21,7 @@ import ChatScreen from './screens/ChatScreen.js';
 import SucheScreen from './screens/SucheScreen.js';
 import TickerScreen from './screens/TickerScreen';
 import TickerCodeScreen from './screens/TickerCodeScreen';
+import { fetchTickerGameById } from './lib/validateTickerAccess';
 import TimelineScreen from './screens/TimelineScreen.js';
 import ProfilScreen from './screens/ProfilScreen.js';
 import CoachOnboardingWizard from './screens/onboarding/CoachOnboardingWizard';
@@ -56,6 +57,7 @@ export default function App() {
   const [showDeleteProfile, setShowDeleteProfile] = useState(false);
   const [showTickerFlow, setShowTickerFlow]       = useState(false);
   const [tickerGame, setTickerGame]               = useState(null);
+  const [tickerSessionGame, setTickerSessionGame] = useState(null);
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const [sucheResetKey, setSucheResetKey]         = useState(0);
   const [profilResetKey, setProfilResetKey]         = useState(0);
@@ -127,19 +129,124 @@ export default function App() {
     setUserRole(null);
     setShowTickerFlow(false);
     setTickerGame(null);
+    setTickerSessionGame(null);
     setAuthState('landing');
   };
 
-  const openTickerFlow = () => {
+  const refreshTickerSessionGame = async (gameHint) => {
+    if (!gameHint?.id) return gameHint ?? null;
+    const fresh = await fetchTickerGameById(gameHint.id);
+    return fresh ?? gameHint;
+  };
+
+  const isGameFinished = (game) => (game?.status ?? '').toLowerCase() === 'finished';
+
+  const syncTickerSessionGame = (game) => {
+    if (game && !isGameFinished(game)) {
+      setTickerSessionGame(game);
+      return game;
+    }
+    setTickerSessionGame(null);
+    return null;
+  };
+
+  const openTickerFlow = async () => {
     setIsMenuOpen(false);
     setShowTickerFlow(true);
+    if (tickerSessionGame?.id) {
+      const game = await refreshTickerSessionGame(tickerSessionGame);
+      const session = syncTickerSessionGame(game);
+      setTickerGame(session);
+    } else {
+      setTickerGame(null);
+    }
+  };
+
+  const openTickerForGame = async (gameId) => {
+    const game = await fetchTickerGameById(gameId);
+    if (!game) {
+      Alert.alert('Fehler', 'Spiel konnte nicht geladen werden.');
+      return;
+    }
+    syncTickerSessionGame(game);
+    setTickerGame(game);
+    setShowTeamDashboard(false);
+    setDashboardTeamId(null);
+    setShowTickerFlow(true);
+  };
+
+  const leaveTickerMask = async () => {
+    setShowTickerFlow(false);
     setTickerGame(null);
+    if (tickerSessionGame?.id) {
+      const fresh = await refreshTickerSessionGame(tickerSessionGame);
+      syncTickerSessionGame(fresh);
+    }
   };
 
   const closeTickerFlow = () => {
     setShowTickerFlow(false);
     setTickerGame(null);
   };
+
+  const handleTickerValidated = (game) => {
+    setTickerGame(game);
+    syncTickerSessionGame(game);
+  };
+
+  const resumeTickerSession = async () => {
+    if (!tickerSessionGame) return;
+    const game = await refreshTickerSessionGame(tickerSessionGame);
+    const session = syncTickerSessionGame(game);
+    if (!session) return;
+    setTickerGame(session);
+    setShowTickerFlow(true);
+  };
+
+  const handleTickerGameUpdated = (updatedGame) => {
+    if (!updatedGame) return;
+    setTickerGame(updatedGame);
+    if (isGameFinished(updatedGame)) {
+      setTickerSessionGame(null);
+    } else {
+      setTickerSessionGame(updatedGame);
+    }
+  };
+
+  const dismissTickerSession = () => {
+    setTickerSessionGame(null);
+    setTickerGame(null);
+  };
+
+  const confirmDismissTickerSession = () => {
+    Alert.alert(
+      'Ticker schließen',
+      'Möchtest du die Ticker-Session wirklich beenden? Du musst den Code erneut eingeben, um wieder zuzugreifen.',
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        { text: 'Schließen', style: 'destructive', onPress: dismissTickerSession },
+      ],
+    );
+  };
+
+  const tickerSessionLabel = (game) => {
+    if (!game) return 'Live-Ticker';
+    const home = game.home_team?.name ?? game.home_team?.short_name ?? 'Heim';
+    const away = game.away_team_name ?? 'Gast';
+    return `${home} vs ${away}`;
+  };
+
+  const showTickerReturnBanner = Boolean(
+    tickerSessionGame
+    && !isGameFinished(tickerSessionGame)
+    && !showTickerFlow
+    && !showSettings
+    && !showDeleteProfile
+    && !showTeamDashboard
+    && !showInvoiceCode
+    && !showTeamCreation
+    && !selectedGame,
+  );
 
   const handleSignOut = () => {
     Alert.alert('Abmelden', 'Möchtest du dich wirklich abmelden?', [
@@ -150,6 +257,7 @@ export default function App() {
           setIsMenuOpen(false);
           setShowTickerFlow(false);
           setTickerGame(null);
+          setTickerSessionGame(null);
           await supabase.auth.signOut();
           setAuthState('landing');
         },
@@ -467,6 +575,37 @@ export default function App() {
         </View>
       </View>
 
+      {/* TICKER-SESSION: Zurück zur Maske ohne Code */}
+      {showTickerReturnBanner && (
+        <TouchableOpacity
+          style={styles.tickerReturnBanner}
+          onPress={resumeTickerSession}
+          activeOpacity={0.88}
+        >
+          <View style={styles.tickerReturnBannerIcon}>
+            <Zap size={18} color="#FFFFFF" />
+          </View>
+          <View style={styles.tickerReturnBannerTextWrap}>
+            <Text style={styles.tickerReturnBannerTitle}>Live-Ticker fortsetzen</Text>
+            <Text style={styles.tickerReturnBannerSub} numberOfLines={1}>
+              {tickerSessionLabel(tickerSessionGame)}
+              {tickerSessionGame?.game_code ? ` · ${tickerSessionGame.game_code}` : ''}
+            </Text>
+          </View>
+          <ChevronRight size={20} color="#FFFFFF" />
+          <TouchableOpacity
+            onPress={(e) => {
+              e?.stopPropagation?.();
+              confirmDismissTickerSession();
+            }}
+            hitSlop={10}
+            style={styles.tickerReturnBannerClose}
+          >
+            <X size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      )}
+
       {/* DYNAMISCHER INHALT JE NACH AKTIVEM TAB ODER AUSGEWÄHLTEM SPIEL */}
       <View style={{ flex: 1, overflow: 'hidden' }}>
         {selectedGame ? (
@@ -551,14 +690,16 @@ export default function App() {
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#FFFFFF', zIndex: 220 }}>
           {tickerGame ? (
             <TickerScreen
+              key={tickerGame.id}
               game={tickerGame}
-              onBack={() => setTickerGame(null)}
-              onExit={closeTickerFlow}
+              onBack={leaveTickerMask}
+              onExit={leaveTickerMask}
+              onGameUpdated={handleTickerGameUpdated}
             />
           ) : (
             <TickerCodeScreen
               onBack={closeTickerFlow}
-              onSuccess={(game) => setTickerGame(game)}
+              onSuccess={handleTickerValidated}
             />
           )}
         </View>
@@ -576,6 +717,7 @@ export default function App() {
               setDashboardTeamId(null);
               openTickerFlow();
             }}
+            onOpenLiveTicker={(gameId) => openTickerForGame(gameId)}
           />
         </View>
       )}

@@ -175,6 +175,42 @@ const styles = StyleSheet.create({
   activeFilterTabText: {
     color: W,
   },
+  tickerReturnBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: R,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.2)',
+  },
+  tickerReturnBannerIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tickerReturnBannerTextWrap: {
+    flex: 1,
+  },
+  tickerReturnBannerTitle: {
+    color: W,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  tickerReturnBannerSub: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  tickerReturnBannerClose: {
+    padding: 4,
+    marginLeft: 2,
+  },
   navBarWrapper: {
     position: 'absolute',
     bottom: 30,
