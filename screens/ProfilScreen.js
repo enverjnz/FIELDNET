@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, StatusBar,
+  View, Text, SafeAreaView, StatusBar,
   ScrollView, TouchableOpacity, Image, ActivityIndicator,
   TextInput, Alert, Modal, KeyboardAvoidingView, Platform, RefreshControl,
 } from 'react-native';
@@ -18,6 +18,8 @@ import { resolveProfileAvatarUrl } from '../lib/uploadImage';
 import BirthDateField from '../components/BirthDateField';
 import TeamProfileScreen from './TeamProfileScreen';
 import FullscreenImageModal from '../components/FullscreenImageModal';
+import { useTheme } from '../context/ThemeContext';
+import { createProfilStyles } from '../theme/profilStyles';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -33,7 +35,7 @@ const SPECIALIZATIONS = ['Offense', 'Defense', 'Special Teams', 'Allrounder'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function Initials({ firstName, lastName }) {
+function Initials({ firstName, lastName, styles }) {
   const letters = `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase() || '?';
   return (
     <View style={styles.avatarPlaceholder}>
@@ -42,13 +44,17 @@ function Initials({ firstName, lastName }) {
   );
 }
 
-function MembershipBadge({ status }) {
+function MembershipBadge({ status, styles, isDark }) {
   const config = {
     pending:       { bg: '#2A1F00', border: '#FBBF24', text: '#FBBF24', label: 'Anfrage läuft'         },
     coach_pending: { bg: '#2A1F00', border: '#FBBF24', text: '#FBBF24', label: 'Trainer-Anfrage läuft' },
-    approved:      { bg: '#E8EDF8', border: '#1A2F6E', text: '#1A2F6E', label: 'Mitglied'              },
+    approved: isDark
+      ? { bg: '#1A2336', border: '#5B7FD4', text: '#93B4FF', label: 'Mitglied' }
+      : { bg: '#E8EDF8', border: '#1A2F6E', text: '#1A2F6E', label: 'Mitglied' },
     declined:      { bg: '#1F0A0A', border: '#FF4757', text: '#FF4757', label: 'Abgelehnt'             },
-  }[status] ?? { bg: '#F0F4FF', border: '#D1D8F0', text: '#6B7280', label: status };
+  }[status] ?? (isDark
+    ? { bg: '#1A2336', border: '#2A3654', text: '#94A3B8', label: status }
+    : { bg: '#F0F4FF', border: '#D1D8F0', text: '#6B7280', label: status });
 
   return (
     <View style={[styles.badge, { backgroundColor: config.bg, borderColor: config.border }]}>
@@ -57,7 +63,7 @@ function MembershipBadge({ status }) {
   );
 }
 
-function StatCard({ icon, label, value }) {
+function StatCard({ icon, label, value, styles }) {
   return (
     <View style={styles.statCard}>
       <View style={styles.statIcon}>{icon}</View>
@@ -67,7 +73,7 @@ function StatCard({ icon, label, value }) {
   );
 }
 
-function EditField({ label, value, onChangeText, placeholder, keyboardType, multiline }) {
+function EditField({ label, value, onChangeText, placeholder, keyboardType, multiline, styles, colors }) {
   return (
     <View style={styles.editField}>
       <Text style={styles.editLabel}>{label}</Text>
@@ -76,7 +82,7 @@ function EditField({ label, value, onChangeText, placeholder, keyboardType, mult
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder ?? ''}
-        placeholderTextColor="#4A5568"
+        placeholderTextColor={colors.textMuted}
         keyboardType={keyboardType ?? 'default'}
         autoCapitalize="none"
         multiline={multiline}
@@ -89,6 +95,9 @@ function EditField({ label, value, onChangeText, placeholder, keyboardType, mult
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ProfilScreen({ refreshKey = 0 }) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createProfilStyles(colors), [colors]);
+
   const [profile, setProfile]         = useState(null);
   const [email, setEmail]             = useState('');
   const [memberships, setMemberships] = useState([]);
@@ -335,7 +344,7 @@ export default function ProfilScreen({ refreshKey = 0 }) {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#1A2F6E" />
+          <ActivityIndicator size="large" color={colors.text} />
         </View>
       </SafeAreaView>
     );
@@ -346,7 +355,7 @@ export default function ProfilScreen({ refreshKey = 0 }) {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.centered}>
-          <View style={styles.avatarPlaceholder}><User size={48} color="#1A2F6E" /></View>
+          <View style={styles.avatarPlaceholder}><User size={48} color={colors.text} /></View>
           <Text style={styles.emptyTitle}>Kein Profil gefunden</Text>
           <Text style={styles.emptySubtitle}>Registriere dich, um dein Profil zu sehen.</Text>
         </View>
@@ -382,17 +391,17 @@ export default function ProfilScreen({ refreshKey = 0 }) {
 
     return (
       <SafeAreaView style={styles.safe}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scroll}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={B} colors={[B]} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} colors={[colors.accent]} />}
         >
 
           {/* HEADER */}
           <View style={styles.headerSection}>
             <TouchableOpacity style={styles.editBtn} onPress={startEditing} activeOpacity={0.8}>
-              <Pencil size={16} color="#1A2F6E" />
+              <Pencil size={16} color={colors.text} />
               <Text style={styles.editBtnText}>Bearbeiten</Text>
             </TouchableOpacity>
 
@@ -404,7 +413,7 @@ export default function ProfilScreen({ refreshKey = 0 }) {
                 <Image source={{ uri: profile.avatar }} style={styles.avatarImg} />
               </TouchableOpacity>
             ) : (
-              <Initials firstName={profile.first_name} lastName={profile.last_name} />
+              <Initials firstName={profile.first_name} lastName={profile.last_name} styles={styles} />
             )}
 
             <View style={styles.rolePill}>
@@ -422,7 +431,7 @@ export default function ProfilScreen({ refreshKey = 0 }) {
             <Text style={styles.sectionTitle}>TEAM</Text>
             {profile.role !== 'coach' && memberships.length === 0 && (
               <TouchableOpacity style={styles.joinBtn} onPress={openTeamSearch} activeOpacity={0.8}>
-                <UserPlus size={13} color={R} />
+                <UserPlus size={13} color={colors.accent} />
                 <Text style={styles.joinBtnText}>Team suchen</Text>
               </TouchableOpacity>
             )}
@@ -437,7 +446,7 @@ export default function ProfilScreen({ refreshKey = 0 }) {
                 >
                   {coachTeam.avatar_teamlogo
                     ? <Image source={{ uri: coachTeam.avatar_teamlogo }} style={styles.teamLogo} resizeMode="contain" />
-                    : <View style={styles.teamLogoPlaceholder}><Trophy size={18} color={B} /></View>
+                    : <View style={styles.teamLogoPlaceholder}><Trophy size={18} color={colors.text} /></View>
                   }
                   <View style={{ flex: 1 }}>
                     <Text style={styles.teamName} numberOfLines={1}>{coachTeam.name}</Text>
@@ -448,12 +457,12 @@ export default function ProfilScreen({ refreshKey = 0 }) {
                   <View style={styles.coachTeamBadge}>
                     <Text style={styles.coachTeamBadgeText}>Coach</Text>
                   </View>
-                  <ChevronRight size={18} color={MUTED} />
+                  <ChevronRight size={18} color={colors.textMuted} />
                 </TouchableOpacity>
               ) : (
                 <View style={styles.emptyTeamBtn}>
                   <View style={styles.emptyTeamIcon}>
-                    <Trophy size={22} color={B} />
+                    <Trophy size={22} color={colors.text} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.emptyTeamTitle}>Noch kein Team</Text>
@@ -464,13 +473,13 @@ export default function ProfilScreen({ refreshKey = 0 }) {
             ) : memberships.length === 0 ? (
               <TouchableOpacity style={styles.emptyTeamBtn} onPress={openTeamSearch} activeOpacity={0.8}>
                 <View style={styles.emptyTeamIcon}>
-                  <Trophy size={22} color={B} />
+                  <Trophy size={22} color={colors.text} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.emptyTeamTitle}>Noch kein Team</Text>
                   <Text style={styles.emptyTeamSub}>Tippe hier, um ein Team zu suchen und beizutreten</Text>
                 </View>
-                <Search size={16} color={MUTED} />
+                <Search size={16} color={colors.textMuted} />
               </TouchableOpacity>
             ) : (
               memberships.map((m, i) => (
@@ -482,11 +491,11 @@ export default function ProfilScreen({ refreshKey = 0 }) {
                 >
                   {m.teams?.avatar_teamlogo
                     ? <Image source={{ uri: m.teams.avatar_teamlogo }} style={styles.teamLogo} />
-                    : <View style={styles.teamLogoPlaceholder}><Users size={18} color="#1A2F6E" /></View>
+                    : <View style={styles.teamLogoPlaceholder}><Users size={18} color={colors.text} /></View>
                   }
                   <Text style={styles.teamName} numberOfLines={1}>{m.teams?.name ?? '–'}</Text>
-                  <MembershipBadge status={m.status} />
-                  <ChevronRight size={18} color={MUTED} />
+                  <MembershipBadge status={m.status} styles={styles} isDark={isDark} />
+                  <ChevronRight size={18} color={colors.textMuted} />
                 </TouchableOpacity>
               ))
             )}
@@ -511,35 +520,35 @@ export default function ProfilScreen({ refreshKey = 0 }) {
               />
             ) : (
             <KeyboardAvoidingView
-              style={{ flex: 1, backgroundColor: '#FFFFFF' }}
+              style={{ flex: 1, backgroundColor: colors.background }}
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
               {/* Modal Header */}
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Team suchen</Text>
                 <TouchableOpacity onPress={() => setShowTeamSearch(false)} hitSlop={8}>
-                  <X size={22} color={B} />
+                  <X size={22} color={colors.text} />
                 </TouchableOpacity>
               </View>
 
               {/* Search Bar */}
               <View style={styles.modalSearchBar}>
-                <Search size={17} color={MUTED} />
+                <Search size={17} color={colors.textMuted} />
                 <TextInput
                   ref={searchRef}
                   style={styles.modalSearchInput}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   placeholder="Teamname eingeben…"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={colors.textMuted}
                   returnKeyType="search"
                   autoCorrect={false}
                 />
                 {isSearching
-                  ? <ActivityIndicator size="small" color={B} />
+                  ? <ActivityIndicator size="small" color={colors.text} />
                   : searchQuery.length > 0
                     ? <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={8}>
-                        <X size={16} color={MUTED} />
+                        <X size={16} color={colors.textMuted} />
                       </TouchableOpacity>
                     : null
                 }
@@ -554,7 +563,7 @@ export default function ProfilScreen({ refreshKey = 0 }) {
               >
                 {searchQuery.trim() === '' ? (
                   <View style={styles.modalEmpty}>
-                    <Search size={36} color={MUTED} style={{ marginBottom: 12 }} />
+                    <Search size={36} color={colors.textMuted} style={{ marginBottom: 12 }} />
                     <Text style={styles.modalEmptyText}>Gib einen Teamnamen ein, um zu suchen</Text>
                   </View>
                 ) : searchResults.length === 0 && !isSearching ? (
@@ -571,7 +580,7 @@ export default function ProfilScreen({ refreshKey = 0 }) {
                     >
                       {team.avatar_teamlogo
                         ? <Image source={{ uri: team.avatar_teamlogo }} style={styles.resultLogo} resizeMode="contain" />
-                        : <View style={styles.resultLogoPlaceholder}><Trophy size={16} color={B} /></View>
+                        : <View style={styles.resultLogoPlaceholder}><Trophy size={16} color={colors.text} /></View>
                       }
                       <View style={{ flex: 1 }}>
                         <Text style={styles.resultName}>{team.name}</Text>
@@ -579,7 +588,7 @@ export default function ProfilScreen({ refreshKey = 0 }) {
                           {[team.town, team.short_name].filter(Boolean).join(' · ') || 'Kein Ort angegeben'}
                         </Text>
                       </View>
-                      <ChevronRight size={18} color={MUTED} />
+                      <ChevronRight size={18} color={colors.textMuted} />
                     </TouchableOpacity>
                   ))
                 )}
@@ -593,14 +602,14 @@ export default function ProfilScreen({ refreshKey = 0 }) {
             <>
               <Text style={styles.sectionTitle}>SPIELERINFORMATIONEN</Text>
               <View style={styles.statsGrid}>
-                <StatCard icon={<Shield size={18} color="#1A2F6E" />}   label="Position"      value={profile.position} />
-                <StatCard icon={<Hash size={18} color="#1A2F6E" />}     label="Trikotnummer"  value={profile.jersey_number ? `#${profile.jersey_number}` : null} />
-                <StatCard icon={<Calendar size={18} color="#1A2F6E" />} label="Geburtsdatum"  value={displayBirthDate} />
-                <StatCard icon={<Calendar size={18} color="#1A2F6E" />} label="Alter"         value={displayAge != null ? `${displayAge} Jahre` : null} />
-                <StatCard icon={<User size={18} color="#1A2F6E" />}     label="Geschlecht"    value={profile.gender} />
-                <StatCard icon={<Ruler size={18} color="#1A2F6E" />}    label="Größe"         value={profile.height ? `${profile.height} cm` : null} />
-                <StatCard icon={<Weight size={18} color="#1A2F6E" />}   label="Gewicht"       value={profile.weight ? `${profile.weight} kg` : null} />
-                <StatCard icon={<Flag size={18} color="#1A2F6E" />}     label="Nationalität"  value={profile.nationality} />
+                <StatCard icon={<Shield size={18} color={colors.text} />}   label="Position"      value={profile.position} styles={styles} />
+                <StatCard icon={<Hash size={18} color={colors.text} />}     label="Trikotnummer"  value={profile.jersey_number ? `#${profile.jersey_number}` : null} styles={styles} />
+                <StatCard icon={<Calendar size={18} color={colors.text} />} label="Geburtsdatum"  value={displayBirthDate} styles={styles} />
+                <StatCard icon={<Calendar size={18} color={colors.text} />} label="Alter"         value={displayAge != null ? `${displayAge} Jahre` : null} styles={styles} />
+                <StatCard icon={<User size={18} color={colors.text} />}     label="Geschlecht"    value={profile.gender} styles={styles} />
+                <StatCard icon={<Ruler size={18} color={colors.text} />}    label="Größe"         value={profile.height ? `${profile.height} cm` : null} styles={styles} />
+                <StatCard icon={<Weight size={18} color={colors.text} />}   label="Gewicht"       value={profile.weight ? `${profile.weight} kg` : null} styles={styles} />
+                <StatCard icon={<Flag size={18} color={colors.text} />}     label="Nationalität"  value={profile.nationality} styles={styles} />
               </View>
             </>
           )}
@@ -610,10 +619,10 @@ export default function ProfilScreen({ refreshKey = 0 }) {
             <>
               <Text style={styles.sectionTitle}>TRAINERINFORMATIONEN</Text>
               <View style={styles.statsGrid}>
-                <StatCard icon={<Briefcase size={18} color="#1A2F6E" />} label="Funktion"         value={profile.coaching_role} />
-                <StatCard icon={<Target size={18} color="#1A2F6E" />}    label="Spezialisierung"  value={profile.coaching_specialization} />
-                <StatCard icon={<Award size={18} color="#1A2F6E" />}     label="Lizenz"           value={profile.coaching_license} />
-                <StatCard icon={<Clock size={18} color="#1A2F6E" />}     label="Erfahrung"        value={profile.coaching_experience != null ? `${profile.coaching_experience} Jahre` : null} />
+                <StatCard icon={<Briefcase size={18} color={colors.text} />} label="Funktion"         value={profile.coaching_role} styles={styles} />
+                <StatCard icon={<Target size={18} color={colors.text} />}    label="Spezialisierung"  value={profile.coaching_specialization} styles={styles} />
+                <StatCard icon={<Award size={18} color={colors.text} />}     label="Lizenz"           value={profile.coaching_license} styles={styles} />
+                <StatCard icon={<Clock size={18} color={colors.text} />}     label="Erfahrung"        value={profile.coaching_experience != null ? `${profile.coaching_experience} Jahre` : null} styles={styles} />
               </View>
             </>
           )}
@@ -651,7 +660,7 @@ export default function ProfilScreen({ refreshKey = 0 }) {
   // ── Edit mode ──────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
@@ -661,7 +670,7 @@ export default function ProfilScreen({ refreshKey = 0 }) {
         <View style={styles.editHeader}>
           <Text style={styles.editTitle}>Profil bearbeiten</Text>
           <TouchableOpacity onPress={cancelEditing} style={styles.cancelIcon} activeOpacity={0.7}>
-            <X size={22} color="#1A2F6E" />
+            <X size={22} color={colors.text} />
           </TouchableOpacity>
         </View>
 
@@ -682,7 +691,7 @@ export default function ProfilScreen({ refreshKey = 0 }) {
               </>
             ) : (
               <TouchableOpacity onPress={pickAvatar} activeOpacity={0.8}>
-                <Initials firstName={draft.first_name} lastName={draft.last_name} />
+                <Initials firstName={draft.first_name} lastName={draft.last_name} styles={styles} />
                 <View style={styles.avatarEditOverlay}>
                   <Camera size={22} color="#fff" />
                 </View>
@@ -700,9 +709,9 @@ export default function ProfilScreen({ refreshKey = 0 }) {
         {/* PERSÖNLICHE DATEN */}
         <Text style={styles.sectionTitle}>PERSÖNLICHE DATEN</Text>
         <View style={styles.editCard}>
-          <EditField label="Vorname"  value={draft.first_name}  onChangeText={(v) => updateDraft('first_name', v)}  placeholder="Max" />
-          <EditField label="Nachname" value={draft.last_name}   onChangeText={(v) => updateDraft('last_name', v)}   placeholder="Mustermann" />
-          <EditField label="Bio"      value={draft.bio}         onChangeText={(v) => updateDraft('bio', v)}         placeholder="Erzähl etwas über dich…" multiline />
+          <EditField label="Vorname"  value={draft.first_name}  onChangeText={(v) => updateDraft('first_name', v)}  placeholder="Max" styles={styles} colors={colors} />
+          <EditField label="Nachname" value={draft.last_name}   onChangeText={(v) => updateDraft('last_name', v)}   placeholder="Mustermann" styles={styles} colors={colors} />
+          <EditField label="Bio"      value={draft.bio}         onChangeText={(v) => updateDraft('bio', v)}         placeholder="Erzähl etwas über dich…" multiline styles={styles} colors={colors} />
           <BirthDateField
             value={draft.birthDate ?? null}
             onChange={(birthDate) => updateDraft('birthDate', birthDate)}
@@ -730,7 +739,7 @@ export default function ProfilScreen({ refreshKey = 0 }) {
                 ))}
               </ScrollView>
 
-              <EditField label="Trikotnummer" value={draft.jersey_number} onChangeText={(v) => updateDraft('jersey_number', v)} placeholder="z.B. 12" keyboardType="numeric" />
+              <EditField label="Trikotnummer" value={draft.jersey_number} onChangeText={(v) => updateDraft('jersey_number', v)} placeholder="z.B. 12" keyboardType="numeric" styles={styles} colors={colors} />
 
               {/* Gender chips */}
               <Text style={styles.editLabel}>GESCHLECHT</Text>
@@ -749,16 +758,16 @@ export default function ProfilScreen({ refreshKey = 0 }) {
 
               <View style={styles.twoCol}>
                 <View style={{ flex: 1 }}>
-                  <EditField label="Nationalität" value={draft.nationality} onChangeText={(v) => updateDraft('nationality', v)} placeholder="z.B. Deutsch" />
+                  <EditField label="Nationalität" value={draft.nationality} onChangeText={(v) => updateDraft('nationality', v)} placeholder="z.B. Deutsch" styles={styles} colors={colors} />
                 </View>
               </View>
 
               <View style={styles.twoCol}>
                 <View style={{ flex: 1 }}>
-                  <EditField label="Gewicht (kg)" value={draft.weight} onChangeText={(v) => updateDraft('weight', v)} placeholder="z.B. 85"  keyboardType="decimal-pad" />
+                  <EditField label="Gewicht (kg)" value={draft.weight} onChangeText={(v) => updateDraft('weight', v)} placeholder="z.B. 85"  keyboardType="decimal-pad" styles={styles} colors={colors} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <EditField label="Größe (cm)"   value={draft.height} onChangeText={(v) => updateDraft('height', v)} placeholder="z.B. 182" keyboardType="decimal-pad" />
+                  <EditField label="Größe (cm)"   value={draft.height} onChangeText={(v) => updateDraft('height', v)} placeholder="z.B. 182" keyboardType="decimal-pad" styles={styles} colors={colors} />
                 </View>
               </View>
 
@@ -823,6 +832,8 @@ export default function ProfilScreen({ refreshKey = 0 }) {
                 onChangeText={(v) => updateDraft('coaching_experience', v)}
                 placeholder="z.B. 5"
                 keyboardType="numeric"
+                styles={styles}
+                colors={colors}
               />
 
             </View>
@@ -857,232 +868,3 @@ export default function ProfilScreen({ refreshKey = 0 }) {
     </SafeAreaView>
   );
 }
-
-const B = '#1A2F6E';
-const R = '#C01830';
-const BG = '#F0F4FF';
-const BORDER = '#D1D8F0';
-const MUTED = '#6B7280';
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  safe:     { flex: 1, backgroundColor: '#FFFFFF' },
-  scroll:   { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 20 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-
-  headerSection: { alignItems: 'center', marginBottom: 32 },
-  editBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    alignSelf: 'flex-end', marginBottom: 16,
-    backgroundColor: BG, borderRadius: 20,
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderWidth: 1.5, borderColor: B,
-  },
-  editBtnText: { color: B, fontSize: 12, fontWeight: '800' },
-
-  avatarImg: {
-    width: 140, height: 140, borderRadius: 70,
-    borderWidth: 3, borderColor: B, marginBottom: 12,
-  },
-  avatarPlaceholder: {
-    width: 140, height: 140, borderRadius: 70,
-    backgroundColor: BG, borderWidth: 2, borderColor: BORDER,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 12,
-  },
-  avatarInitials: { color: B, fontSize: 42, fontWeight: '900' },
-  rolePill: {
-    backgroundColor: BG, borderRadius: 20,
-    paddingHorizontal: 12, paddingVertical: 4,
-    borderWidth: 1.5, borderColor: B, marginBottom: 10,
-  },
-  rolePillText: { color: B, fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
-  fullName: { color: B, fontSize: 24, fontWeight: '900', marginBottom: 8, textAlign: 'center' },
-  bio:      { color: MUTED, fontSize: 13, lineHeight: 20, textAlign: 'center', maxWidth: 300 },
-
-  sectionTitle: {
-    color: MUTED, fontSize: 10, fontWeight: '800',
-    letterSpacing: 1.2, marginBottom: 10, marginTop: 4,
-  },
-
-  card: {
-    backgroundColor: BG, borderRadius: 16,
-    borderWidth: 1, borderColor: BORDER,
-    marginBottom: 24, overflow: 'hidden',
-  },
-  emptyCardText: { color: '#9CA3AF', fontSize: 13, padding: 16, textAlign: 'center' },
-
-  teamRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 14, gap: 12,
-  },
-  teamRowBorder: { borderTopWidth: 1, borderTopColor: BORDER },
-  teamLogo:      { width: 36, height: 36, borderRadius: 8 },
-  teamLogoPlaceholder: {
-    width: 36, height: 36, borderRadius: 8,
-    backgroundColor: '#E8EDF8', justifyContent: 'center', alignItems: 'center',
-  },
-  teamName: { flex: 1, color: B, fontSize: 14, fontWeight: '700' },
-  coachTeamBadge: {
-    backgroundColor: '#E8EDF8', borderRadius: 8,
-    paddingHorizontal: 8, paddingVertical: 3,
-  },
-  coachTeamBadgeText: { color: B, fontSize: 10, fontWeight: '800', letterSpacing: 0.4 },
-
-  badge: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.4 },
-
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
-  statCard: {
-    width: '47%', backgroundColor: BG,
-    borderRadius: 14, borderWidth: 1, borderColor: BORDER,
-    padding: 14, gap: 6,
-  },
-  statIcon:  { marginBottom: 2 },
-  statLabel: { color: MUTED, fontSize: 10, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
-  statValue: { color: B, fontSize: 15, fontWeight: '800' },
-
-  infoRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14,
-  },
-  infoRowBorder: { borderTopWidth: 1, borderTopColor: BORDER },
-  infoLabel: { color: MUTED, fontSize: 13, fontWeight: '600' },
-  infoValue: { color: B, fontSize: 13, fontWeight: '700', maxWidth: '60%', textAlign: 'right' },
-
-  emptyTitle:    { color: B, fontSize: 18, fontWeight: '800', marginTop: 8 },
-  emptySubtitle: { color: MUTED, fontSize: 13, textAlign: 'center', maxWidth: 260 },
-
-  sectionRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 10, marginTop: 4,
-  },
-  joinBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: '#FFF0F2', borderRadius: 12,
-    paddingHorizontal: 10, paddingVertical: 6,
-    borderWidth: 1.5, borderColor: '#FECDD3',
-  },
-  joinBtnText: { color: R, fontSize: 11, fontWeight: '800' },
-
-  emptyTeamBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 16,
-  },
-  emptyTeamIcon: {
-    width: 40, height: 40, borderRadius: 12,
-    backgroundColor: BG, borderWidth: 1, borderColor: BORDER,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  emptyTeamTitle: { color: B, fontSize: 14, fontWeight: '700' },
-  emptyTeamSub:   { color: MUTED, fontSize: 11, marginTop: 2 },
-
-  modalHeader: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', paddingHorizontal: 20, paddingVertical: 18,
-    borderBottomWidth: 1, borderBottomColor: BORDER,
-  },
-  modalTitle: { color: B, fontSize: 18, fontWeight: '900' },
-
-  modalSearchBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: BG, borderRadius: 14,
-    borderWidth: 1.5, borderColor: BORDER,
-    paddingHorizontal: 14, marginHorizontal: 16, marginVertical: 12,
-  },
-  modalSearchInput: {
-    flex: 1, color: B, fontSize: 15, paddingVertical: 13,
-  },
-  modalResults: { paddingHorizontal: 16, paddingBottom: 40 },
-  modalEmpty: {
-    alignItems: 'center', paddingTop: 60,
-  },
-  modalEmptyText: { color: MUTED, fontSize: 14, textAlign: 'center' },
-
-  resultRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: BORDER,
-  },
-  resultLogo: { width: 44, height: 44, borderRadius: 10, backgroundColor: BG },
-  resultLogoPlaceholder: {
-    width: 44, height: 44, borderRadius: 10,
-    backgroundColor: BG, borderWidth: 1, borderColor: BORDER,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  resultName: { color: B, fontSize: 14, fontWeight: '700' },
-  resultMeta: { color: MUTED, fontSize: 11, marginTop: 2 },
-  joinPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: B, borderRadius: 10,
-    paddingHorizontal: 10, paddingVertical: 7,
-  },
-  joinPillText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
-
-  editHeader: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 24,
-  },
-  editTitle:  { color: B, fontSize: 22, fontWeight: '900' },
-  cancelIcon: { padding: 4 },
-
-  avatarEditWrap:  { alignItems: 'center', marginBottom: 28 },
-  avatarEditTouch: { position: 'relative' },
-  avatarEditOverlay: {
-    position: 'absolute', bottom: 4, right: 4,
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: B, justifyContent: 'center', alignItems: 'center',
-    borderWidth: 2, borderColor: '#FFFFFF',
-  },
-  avatarEditHint: { color: MUTED, fontSize: 11, fontWeight: '600', marginTop: 8 },
-  removeAvatarBtn: { marginTop: 10, paddingVertical: 6, paddingHorizontal: 12 },
-  removeAvatarText: { color: R, fontSize: 13, fontWeight: '600' },
-
-  editCard: {
-    backgroundColor: BG, borderRadius: 16,
-    borderWidth: 1, borderColor: BORDER,
-    padding: 16, marginBottom: 24, gap: 4,
-  },
-
-  editField: { marginBottom: 14 },
-  editLabel: {
-    color: B, fontSize: 10, fontWeight: '700',
-    letterSpacing: 0.8, marginBottom: 6, textTransform: 'uppercase',
-  },
-  editInput: {
-    backgroundColor: '#FFFFFF', borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 12,
-    color: B, fontSize: 14, borderWidth: 1.5, borderColor: BORDER,
-  },
-  editInputMulti: { height: 80, textAlignVertical: 'top' },
-
-  chipScroll: { marginBottom: 16 },
-  chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 8,
-    backgroundColor: '#FFFFFF', borderRadius: 20, marginRight: 8,
-    borderWidth: 1.5, borderColor: BORDER,
-  },
-  chipActive:     { backgroundColor: B, borderColor: B },
-  chipText:       { color: MUTED, fontSize: 13, fontWeight: '700' },
-  chipTextActive: { color: '#FFFFFF' },
-  genderRow:      { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  genderChip: {
-    flex: 1, paddingVertical: 10, alignItems: 'center',
-    backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 1.5, borderColor: BORDER,
-  },
-  twoCol: { flexDirection: 'row', gap: 12 },
-
-  saveRow:      { flexDirection: 'row', gap: 12, marginTop: 8 },
-  btnCancel: {
-    flex: 1, backgroundColor: BG, borderRadius: 14,
-    paddingVertical: 16, alignItems: 'center', borderWidth: 1.5, borderColor: BORDER,
-  },
-  btnCancelText: { color: B, fontSize: 15, fontWeight: '700' },
-  btnSave: {
-    flex: 2, backgroundColor: R, borderRadius: 14,
-    paddingVertical: 16, alignItems: 'center',
-    flexDirection: 'row', justifyContent: 'center', gap: 8,
-  },
-  btnDisabled:  { opacity: 0.6 },
-  btnSaveText:  { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
-});

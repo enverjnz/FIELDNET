@@ -7,6 +7,7 @@ import { Calendar, ListOrdered, MapPin } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { fetchLeagueTeamIds } from '../lib/leagueTeams';
 import { useFilter } from '../context/FilterContext';
+import { useTheme } from '../context/ThemeContext';
 import { FilterEmptyPrompt } from '../components/MasterFilterBar';
 
 const B = '#1A2F6E';
@@ -40,6 +41,7 @@ function formatGameDate(isoDate) {
 }
 
 export default function LigenScreen() {
+  const { colors } = useTheme();
   const [activeSubTab, setActiveSubTab] = useState(0);
   const {
     selectedLeagueId,
@@ -120,14 +122,14 @@ export default function LigenScreen() {
 
   if (!isFilterReady && !catalogLoading) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <FilterEmptyPrompt style={{ marginTop: 16 }} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Tabelle / Spielplan */}
       <View style={styles.subTabContainer}>
         <TouchableOpacity

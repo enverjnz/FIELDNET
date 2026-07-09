@@ -3,12 +3,15 @@ import React from 'react';
 
 import App from './App';
 import { FilterProvider } from './context/FilterContext';
+import { ThemeProvider } from './context/ThemeContext';
 
 function Root() {
   return (
-    <FilterProvider>
-      <App />
-    </FilterProvider>
+    <ThemeProvider>
+      <FilterProvider>
+        <App />
+      </FilterProvider>
+    </ThemeProvider>
   );
 }
 

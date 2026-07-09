@@ -17,6 +17,7 @@ import {
   joinLeagueConversation,
 } from '../lib/chat';
 import { useFilter } from '../context/FilterContext';
+import { useTheme } from '../context/ThemeContext';
 import { FilterEmptyPrompt } from '../components/MasterFilterBar';
 import ChatRoomScreen from './ChatRoomScreen';
 import LeagueChatJoinScreen from './LeagueChatJoinScreen';
@@ -59,6 +60,7 @@ function formatPreviewTime(iso) {
 }
 
 export default function ChatScreen({ initialConversationId, onInitialConversationHandled }) {
+  const { colors } = useTheme();
   const {
     selectedLeagueId,
     isFilterReady,
@@ -144,7 +146,7 @@ export default function ChatScreen({ initialConversationId, onInitialConversatio
 
   if (!isFilterReady && !catalogLoading && !activeConversationId && !showLeagueJoin) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <FilterEmptyPrompt style={{ marginTop: 16 }} />
       </View>
     );
@@ -179,7 +181,7 @@ export default function ChatScreen({ initialConversationId, onInitialConversatio
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.dmSection}>
         <Text style={styles.sectionTitle}>💬 DIREKTNACHRICHTEN</Text>
         {loading ? (

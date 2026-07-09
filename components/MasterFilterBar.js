@@ -1,15 +1,65 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { MapPin } from 'lucide-react-native';
 import { useFilter } from '../context/FilterContext';
+import { useTheme } from '../context/ThemeContext';
 import FilterDropdown from './FilterDropdown';
 
-const B = '#1A2F6E';
-const BG = '#F0F4FF';
-const BORDER = '#D1D8F0';
-const MUTED = '#6B7280';
+function createStyles(c) {
+  return StyleSheet.create({
+    wrap: {
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      paddingBottom: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+      backgroundColor: c.surface,
+    },
+    wrapCompact: { paddingTop: 8, paddingBottom: 6 },
+    row: { gap: 8 },
+    rowCompact: { flexDirection: 'row', gap: 6 },
+    summary: {
+      color: c.textMuted,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.4,
+      marginTop: 8,
+    },
+    loadingWrap: {
+      paddingVertical: 14,
+      alignItems: 'center',
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+      backgroundColor: c.surface,
+    },
+    emptyBox: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 40,
+      paddingHorizontal: 24,
+      marginHorizontal: 16,
+      marginTop: 24,
+      backgroundColor: c.card,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: c.border,
+      gap: 8,
+    },
+    emptyTitle: { color: c.text, fontSize: 16, fontWeight: '800', textAlign: 'center' },
+    emptySub: {
+      color: c.textMuted,
+      fontSize: 13,
+      fontWeight: '500',
+      textAlign: 'center',
+      lineHeight: 18,
+    },
+  });
+}
 
 export default function MasterFilterBar({ compact = false }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const {
     selectedSeasonId,
     selectedRegionId,
@@ -33,7 +83,7 @@ export default function MasterFilterBar({ compact = false }) {
   if (!hydrated && catalogLoading) {
     return (
       <View style={styles.loadingWrap}>
-        <ActivityIndicator size="small" color={B} />
+        <ActivityIndicator size="small" color={colors.primary} />
       </View>
     );
   }
@@ -103,9 +153,12 @@ export default function MasterFilterBar({ compact = false }) {
 }
 
 export function FilterEmptyPrompt({ style }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={[styles.emptyBox, style]}>
-      <MapPin size={28} color={MUTED} />
+      <MapPin size={28} color={colors.textMuted} />
       <Text style={styles.emptyTitle}>Liga wählen</Text>
       <Text style={styles.emptySub}>
         Bitte wähle eine Liga aus, um zu starten.
@@ -113,51 +166,3 @@ export function FilterEmptyPrompt({ style }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-    backgroundColor: '#FFFFFF',
-  },
-  wrapCompact: { paddingTop: 8, paddingBottom: 6 },
-  row: { gap: 8 },
-  rowCompact: { flexDirection: 'row', gap: 6 },
-  summary: {
-    color: MUTED,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    marginTop: 8,
-  },
-  loadingWrap: {
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-  },
-  emptyBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 24,
-    marginHorizontal: 16,
-    marginTop: 24,
-    backgroundColor: BG,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: BORDER,
-    gap: 8,
-  },
-  emptyTitle: { color: B, fontSize: 16, fontWeight: '800', textAlign: 'center' },
-  emptySub: {
-    color: MUTED,
-    fontSize: 13,
-    fontWeight: '500',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-});

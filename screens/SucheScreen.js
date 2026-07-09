@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Search, X, Clock, Users, Trophy } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
+import { useTheme } from '../context/ThemeContext';
 import TeamProfileScreen from './TeamProfileScreen';
 import PlayerProfileScreen from './PlayerProfileScreen';
 
@@ -26,7 +27,140 @@ const CATEGORIES = [
   { key: 'media',   label: 'Fotos & Videos' },
 ];
 
+function createStyles(c) {
+  const isDark = c.mode === 'dark';
+  const iconTeamBg = isDark ? '#243049' : '#E8EDF8';
+  const iconPlayerBg = isDark ? '#3A2430' : '#FFF0F2';
+
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.background },
+
+    searchSection: {
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+      zIndex: 100,
+    },
+    searchBarWrapper: {
+      flexDirection: 'row',
+      backgroundColor: c.card,
+      borderColor: c.border,
+      borderWidth: 1.5,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      height: 44,
+      alignItems: 'center',
+    },
+    searchBarFocused: {
+      borderColor: isDark ? c.textMuted : c.primary,
+      backgroundColor: c.surface,
+      shadowColor: isDark ? '#000' : c.primary,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDark ? 0.3 : 0.12,
+      shadowRadius: 6,
+      elevation: 3,
+    },
+    searchInput: { flex: 1, color: c.text, fontSize: 14, fontWeight: '600' },
+
+    suggestionsBox: {
+      position: 'absolute',
+      top: 68,
+      left: 16,
+      right: 16,
+      backgroundColor: c.surface,
+      borderRadius: 14,
+      borderWidth: 1.5,
+      borderColor: c.border,
+      shadowColor: isDark ? '#000' : c.primary,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: isDark ? 0.35 : 0.14,
+      shadowRadius: 12,
+      elevation: 8,
+      zIndex: 200,
+      overflow: 'hidden',
+    },
+    dropdownCenter: { paddingVertical: 18, alignItems: 'center' },
+    dropdownHint:  { color: c.textMuted, fontSize: 12, marginTop: 6 },
+
+    suggestionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      gap: 10,
+    },
+    suggestionBorder:   { borderBottomWidth: 1, borderBottomColor: c.border },
+    suggestionIcon:     { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+    suggestionAvatar:   { width: 40, height: 40, borderRadius: 12 },
+    suggestionInitials: { color: c.text, fontSize: 13, fontWeight: '800' },
+    suggestionInitialsPlayer: { color: c.accent },
+    iconTeam:           { backgroundColor: iconTeamBg },
+    iconPlayer:         { backgroundColor: iconPlayerBg },
+    suggestionName:     { color: c.text, fontSize: 14, fontWeight: '700' },
+    suggestionMeta:     { color: c.textMuted, fontSize: 11, fontWeight: '500', marginTop: 1 },
+    typeBadge:          { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
+    badgeTeam:          { backgroundColor: iconTeamBg },
+    badgePlayer:        { backgroundColor: iconPlayerBg },
+    badgeTeamText:      { color: c.text, fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
+    badgePlayerText:    { color: c.accent, fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
+
+    scrollContainer:    { flex: 1, paddingTop: 16 },
+    sectionTitle:       { color: c.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginLeft: 16, marginBottom: 12 },
+    sectionTitleSmall:  { color: c.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+    sectionHeaderRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 8 },
+    clearAllText:       { color: c.accent, fontSize: 11, fontWeight: '700' },
+    divider:            { height: 1, backgroundColor: c.border, marginHorizontal: 16, marginVertical: 16 },
+
+    categoriesScroll:      { paddingLeft: 16 },
+    categoryBadge: {
+      backgroundColor: c.chipBg,
+      borderColor: c.border,
+      borderWidth: 1.5,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 20,
+      marginRight: 8,
+    },
+    categoryBadgeActive:   { backgroundColor: c.chipSelectedBg, borderColor: c.chipSelectedBg },
+    categoryText:          { color: c.chipText, fontSize: 12, fontWeight: '700' },
+    categoryTextActive:    { color: c.chipTextSelected },
+
+    comingSoonBox: {
+      marginHorizontal: 16,
+      marginTop: 12,
+      backgroundColor: c.card,
+      borderRadius: 12,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: c.border,
+      alignItems: 'center',
+    },
+    comingSoonText: { color: c.text, fontSize: 14, fontWeight: '800', marginBottom: 4 },
+    comingSoonSub:  { color: c.textMuted, fontSize: 12 },
+
+    recentSection:        { width: '100%' },
+    recentList:           { paddingHorizontal: 16 },
+    recentItemRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: c.card,
+      borderRadius: 10,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      marginTop: 6,
+    },
+    recentItemClickable:  { flex: 1, flexDirection: 'row', alignItems: 'center' },
+    recentText:           { color: c.text, fontSize: 13, fontWeight: '600' },
+    deleteItemButton:     { paddingLeft: 10, paddingVertical: 4 },
+  });
+}
+
 export default function SucheScreen({ onOpenChat }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const [searchQuery, setSearchQuery]       = useState('');
   const [isFocused, setIsFocused]           = useState(false);
   const [activeCategory, setActiveCategory] = useState('all');
@@ -180,12 +314,12 @@ export default function SucheScreen({ onOpenChat }) {
 
   const renderSearchIcon = () => {
     if (isSearching) {
-      return <ActivityIndicator size="small" color="#1A2F6E" style={{ marginRight: 4 }} />;
+      return <ActivityIndicator size="small" color={colors.text} style={{ marginRight: 4 }} />;
     }
     if (searchQuery.length > 0) {
       return (
         <TouchableOpacity onPress={handleClear} hitSlop={8}>
-          <X size={18} color="#1A2F6E" />
+          <X size={18} color={colors.text} />
         </TouchableOpacity>
       );
     }
@@ -209,8 +343,8 @@ export default function SucheScreen({ onOpenChat }) {
       }
       return <Text style={[styles.suggestionInitials, styles.suggestionInitialsPlayer]}>{item.initials}</Text>;
     }
-    if (item.type === 'league') return <Trophy size={15} color="#1A2F6E" />;
-    return <Users size={15} color="#1A2F6E" />;
+    if (item.type === 'league') return <Trophy size={15} color={colors.text} />;
+    return <Users size={15} color={colors.text} />;
   };
 
   const renderBadgeLabel = (type) => {
@@ -253,12 +387,12 @@ export default function SucheScreen({ onOpenChat }) {
           style={[styles.searchBarWrapper, isFocused && styles.searchBarFocused]}
           onPress={() => inputRef.current?.focus()}
         >
-          <Search size={18} color="#1A2F6E" style={{ marginRight: 8 }} />
+          <Search size={18} color={colors.text} style={{ marginRight: 8 }} />
           <TextInput
             ref={inputRef}
             style={styles.searchInput}
             placeholder="Teams, Spieler oder Ligen suchen..."
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
             onFocus={() => setIsFocused(true)}
@@ -274,7 +408,7 @@ export default function SucheScreen({ onOpenChat }) {
           <View style={styles.suggestionsBox}>
             {isSearching && suggestions.length === 0 ? (
               <View style={styles.dropdownCenter}>
-                <ActivityIndicator size="small" color="#1A2F6E" />
+                <ActivityIndicator size="small" color={colors.text} />
                 <Text style={styles.dropdownHint}>Suche laeuft...</Text>
               </View>
             ) : suggestions.length === 0 ? (
@@ -312,10 +446,9 @@ export default function SucheScreen({ onOpenChat }) {
                     styles.typeBadge,
                     item.type === 'player' ? styles.badgePlayer : styles.badgeTeam,
                   ]}>
-                    <Text style={[
-                      styles.typeBadgeText,
-                      item.type === 'player' ? styles.badgePlayerText : styles.badgeTeamText,
-                    ]}>
+                    <Text style={
+                      item.type === 'player' ? styles.badgePlayerText : styles.badgeTeamText
+                    }>
                       {renderBadgeLabel(item.type)}
                     </Text>
                   </View>
@@ -388,14 +521,14 @@ export default function SucheScreen({ onOpenChat }) {
                       inputRef.current?.focus();
                     }}
                   >
-                    <Clock size={14} color="#1A2F6E" style={{ marginRight: 10 }} />
+                    <Clock size={14} color={colors.text} style={{ marginRight: 10 }} />
                     <Text style={styles.recentText} numberOfLines={1}>{item}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.deleteItemButton}
                     onPress={() => removeRecent(item)}
                   >
-                    <X size={14} color="#1A2F6E" />
+                    <X size={14} color={colors.textMuted} />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -410,156 +543,3 @@ export default function SucheScreen({ onOpenChat }) {
     </KeyboardAvoidingView>
   );
 }
-
-const B      = '#1A2F6E';
-const R      = '#C01830';
-const BG     = '#F0F4FF';
-const BORDER = '#D1D8F0';
-const MUTED  = '#6B7280';
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-
-  searchSection: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-    zIndex: 100,
-  },
-  searchBarWrapper: {
-    flexDirection: 'row',
-    backgroundColor: BG,
-    borderColor: BORDER,
-    borderWidth: 1.5,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 44,
-    alignItems: 'center',
-  },
-  searchBarFocused: {
-    borderColor: B,
-    backgroundColor: '#FFFFFF',
-    shadowColor: B,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  searchInput: { flex: 1, color: B, fontSize: 14, fontWeight: '600' },
-
-  suggestionsBox: {
-    position: 'absolute',
-    top: 68,
-    left: 16,
-    right: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: BORDER,
-    shadowColor: B,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.14,
-    shadowRadius: 12,
-    elevation: 8,
-    zIndex: 200,
-    overflow: 'hidden',
-  },
-  dropdownCenter: { paddingVertical: 18, alignItems: 'center' },
-  dropdownHint:  { color: MUTED, fontSize: 12, marginTop: 6 },
-
-  suggestionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    gap: 10,
-  },
-  suggestionBorder:   { borderBottomWidth: 1, borderBottomColor: BG },
-  suggestionIcon:     { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
-  suggestionAvatar:   { width: 40, height: 40, borderRadius: 12 },
-  suggestionInitials: { color: B, fontSize: 13, fontWeight: '800' },
-  suggestionInitialsPlayer: { color: R },
-  iconTeam:           { backgroundColor: '#E8EDF8' },
-  iconPlayer:         { backgroundColor: '#FFF0F2' },
-  suggestionName:     { color: B, fontSize: 14, fontWeight: '700' },
-  suggestionMeta:     { color: MUTED, fontSize: 11, fontWeight: '500', marginTop: 1 },
-  typeBadge:          { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
-  badgeTeam:          { backgroundColor: '#E8EDF8' },
-  badgePlayer:        { backgroundColor: '#FFF0F2' },
-  badgeTeamText:      { color: B, fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
-  badgePlayerText:    { color: R, fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
-
-  scrollContainer:    { flex: 1, paddingTop: 16 },
-  sectionTitle:       { color: MUTED, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginLeft: 16, marginBottom: 12 },
-  sectionTitleSmall:  { color: MUTED, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  sectionHeaderRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 8 },
-  clearAllText:       { color: R, fontSize: 11, fontWeight: '700' },
-  divider:            { height: 1, backgroundColor: BORDER, marginHorizontal: 16, marginVertical: 16 },
-
-  categoriesScroll:      { paddingLeft: 16 },
-  categoryBadge: {
-    backgroundColor: BG,
-    borderColor: BORDER,
-    borderWidth: 1.5,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
-  },
-  categoryBadgeActive:   { backgroundColor: B, borderColor: B },
-  categoryText:          { color: B, fontSize: 12, fontWeight: '700' },
-  categoryTextActive:    { color: '#FFFFFF' },
-
-  comingSoonBox: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    backgroundColor: BG,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: BORDER,
-    alignItems: 'center',
-  },
-  comingSoonText: { color: B, fontSize: 14, fontWeight: '800', marginBottom: 4 },
-  comingSoonSub:  { color: MUTED, fontSize: 12 },
-
-  recentSection:        { width: '100%' },
-  recentList:           { paddingHorizontal: 16 },
-  recentItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: BG,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginTop: 6,
-  },
-  recentItemClickable:  { flex: 1, flexDirection: 'row', alignItems: 'center' },
-  recentText:           { color: B, fontSize: 13, fontWeight: '600' },
-  deleteItemButton:     { paddingLeft: 10, paddingVertical: 4 },
-
-  trendingContainer:    { paddingHorizontal: 16 },
-  trendingRow: {
-    flexDirection: 'row',
-    backgroundColor: BG,
-    borderColor: BORDER,
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 12,
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  trendingIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#E8EDF8',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  trendingTagText:   { color: B, fontSize: 13, fontWeight: '800' },
-  trendingCountText: { color: MUTED, fontSize: 11, fontWeight: '500', marginTop: 2 },
-});

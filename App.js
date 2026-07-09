@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 //Component import
 import { 
@@ -14,7 +14,8 @@ import { Trophy, Bell, Search,
   PlusCircle, Menu, X, LogOut, Zap } from 'lucide-react-native';
 
 //Screen imports
-import styles from './HomeScreen.styles';
+import { createAppStyles } from './theme/appStyles';
+import { useTheme } from './context/ThemeContext';
 import LigenScreen from './screens/LigenScreen.js';
 import TermineScreen from './screens/TermineScreen';
 import ChatScreen from './screens/ChatScreen.js';
@@ -40,7 +41,9 @@ import MasterFilterBar from './components/MasterFilterBar';
 
 
 export default function App() {
-  
+  const { colors } = useTheme();
+  const styles = useMemo(() => createAppStyles(colors), [colors]);
+
   const [activeTab, setActiveTab] = useState(0); // 0 bedeutet 'NEWS' ist am Anfang aktiv
   const [selectedGame, setSelectedGame] = useState(null); // kein Spiel ausgewählt
   const [showTeamCreation, setShowTeamCreation]   = useState(false);
@@ -369,7 +372,7 @@ export default function App() {
   if (!authReady) {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
-        <ActivityIndicator size="large" color="#1A2F6E" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </SafeAreaView>
     );
   }
@@ -399,7 +402,8 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={styles.container}><StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
       
       {/* TOP BAR (HEADER) */}
       <View style={styles.header}>
@@ -419,7 +423,7 @@ export default function App() {
             style={styles.burgerButton}
             onPress={() => setIsMenuOpen(true)}
           >
-            <Menu size={24} color="#1A2F6E" />
+            <Menu size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
       </View>
@@ -478,7 +482,7 @@ export default function App() {
             onPress={() => goToTab(0)}
             activeOpacity={0.75}
           >
-            <Home size={22} color={activeTab === 0 ? '#FFFFFF' : '#A0AFCF'} />
+            <Home size={22} color={activeTab === 0 ? '#FFFFFF' : colors.navInactive} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -486,7 +490,7 @@ export default function App() {
             onPress={() => goToTab(1)}
             activeOpacity={0.75}
           >
-            <LayoutGrid size={22} color={activeTab === 1 ? '#FFFFFF' : '#A0AFCF'} />
+            <LayoutGrid size={22} color={activeTab === 1 ? '#FFFFFF' : colors.navInactive} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -494,7 +498,7 @@ export default function App() {
             onPress={() => goToTab(2)}
             activeOpacity={0.75}
           >
-            <MessageSquare size={22} color={activeTab === 2 ? '#FFFFFF' : '#A0AFCF'} />
+            <MessageSquare size={22} color={activeTab === 2 ? '#FFFFFF' : colors.navInactive} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -502,7 +506,7 @@ export default function App() {
             onPress={() => goToTab(3)}
             activeOpacity={0.75}
           >
-            <Search size={22} color={activeTab === 3 ? '#FFFFFF' : '#A0AFCF'} />
+            <Search size={22} color={activeTab === 3 ? '#FFFFFF' : colors.navInactive} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -510,14 +514,14 @@ export default function App() {
             onPress={() => goToTab(4)}
             activeOpacity={0.75}
           >
-            <User size={22} color={activeTab === 4 ? '#FFFFFF' : '#A0AFCF'} />
+            <User size={22} color={activeTab === 4 ? '#FFFFFF' : colors.navInactive} />
           </TouchableOpacity>
         </View>
       </View>
 
       {/* EINSTELLUNGEN */}
       {showSettings && !showDeleteProfile && (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#FFFFFF', zIndex: 200 }}>
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background, zIndex: 200 }}>
           <SettingsScreen
             onBack={() => setShowSettings(false)}
             onDeleteAccount={() => setShowDeleteProfile(true)}
@@ -620,7 +624,7 @@ export default function App() {
           <View style={styles.drawerContainer}>
             <View style={styles.drawerHeader}>
               <TouchableOpacity onPress={() => setIsMenuOpen(false)} style={styles.drawerCloseButton}>
-                <X size={24} color="#1A2F6E" />
+                <X size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
@@ -628,13 +632,13 @@ export default function App() {
             <ScrollView style={styles.drawerMenuScroll} showsVerticalScrollIndicator={false}>
               {[
                 { label: 'Live-Ticker starten', icon: <PlusCircle size={20} color="#C01830" />, action: openTickerFlow },
-                userRole === 'coach' ? { label: 'Vereinsverwaltung', icon: <Trophy size={20} color="#1A2F6E" />, action: handleVerwaltung } : null,
-                { label: 'Einstellungen', icon: <LayoutGrid size={20} color="#1A2F6E" />, action: () => setShowSettings(true) },
-                { label: 'Feedback geben', icon: <MessageSquare size={20} color="#1A2F6E" /> },
-                { label: 'Problem melden', icon: <Bell size={20} color="#1A2F6E" />, action: () => setShowReportProblem(true) },
-                { label: 'Über Fieldnet', icon: <Trophy size={20} color="#1A2F6E" /> },
-                { label: 'Datenschutz', icon: <Users size={20} color="#1A2F6E" /> },
-                { label: 'Impressum', icon: <Users size={20} color="#1A2F6E" /> },
+                userRole === 'coach' ? { label: 'Vereinsverwaltung', icon: <Trophy size={20} color={colors.text} />, action: handleVerwaltung } : null,
+                { label: 'Einstellungen', icon: <LayoutGrid size={20} color={colors.text} />, action: () => setShowSettings(true) },
+                { label: 'Feedback geben', icon: <MessageSquare size={20} color={colors.text} /> },
+                { label: 'Problem melden', icon: <Bell size={20} color={colors.text} />, action: () => setShowReportProblem(true) },
+                { label: 'Über Fieldnet', icon: <Trophy size={20} color={colors.text} /> },
+                { label: 'Datenschutz', icon: <Users size={20} color={colors.text} /> },
+                { label: 'Impressum', icon: <Users size={20} color={colors.text} /> },
               ].filter(Boolean).map((item, index) => (
                 <TouchableOpacity 
                   key={index} 
