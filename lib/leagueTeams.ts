@@ -56,6 +56,19 @@ export async function fetchRegions() {
   return data ?? [];
 }
 
+export const ALLOWED_DIVISIONS = ['Herren', 'Damen', 'Flag'] as const;
+
+export async function fetchLeaguesForRegionAllowed(regionId: number) {
+  const { data, error } = await supabase
+    .from('leagues')
+    .select('id, name, division, region_id')
+    .eq('region_id', regionId)
+    .in('division', [...ALLOWED_DIVISIONS])
+    .order('name', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function fetchLeaguesForRegion(regionId: number, division: string) {
   const { data, error } = await supabase
     .from('leagues')

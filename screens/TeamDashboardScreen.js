@@ -4,12 +4,13 @@ import {
   SafeAreaView, StatusBar, ActivityIndicator,
   Image, ScrollView, RefreshControl, Alert,
 } from 'react-native';
-import { ArrowLeft, Users, Calendar, Zap, ChevronRight, MapPin, Hash, Copy, Check, Trash2, UserMinus, X } from 'lucide-react-native';
+import { ArrowLeft, Users, Calendar, Zap, ChevronRight, MapPin, Hash, Copy, Check, Trash2, UserMinus, X, Newspaper } from 'lucide-react-native';
 import { Clipboard } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { acceptMembershipRequest, rejectMembershipRequest } from '../lib/teamMembership';
 import TeamProfileScreen from './TeamProfileScreen';
 import GameCreateScreen from './GameCreateScreen';
+import PostCreateScreen from './PostCreateScreen';
 import TimelineScreen from './TimelineScreen';
 
 const B      = '#1A2F6E';
@@ -35,7 +36,7 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onOp
   const [deletingGameId, setDeletingGameId] = useState(null);
   const [leavingTeam, setLeavingTeam] = useState(false);
   const [actingOnId, setActingOnId] = useState(null);
-  const [activeScreen, setActiveScreen] = useState(null); // null | 'profile' | 'game' | 'timeline'
+  const [activeScreen, setActiveScreen] = useState(null); // null | 'profile' | 'game' | 'post' | 'timeline'
   const [timelineGameId, setTimelineGameId] = useState(null);
 
   const onRefresh = async () => {
@@ -213,6 +214,16 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onOp
     );
   }
 
+  if (activeScreen === 'post') {
+    return (
+      <PostCreateScreen
+        teamId={teamId}
+        onBack={() => setActiveScreen(null)}
+        onSuccess={() => { setActiveScreen(null); loadData(); }}
+      />
+    );
+  }
+
   if (activeScreen === 'timeline' && timelineGameId) {
     return (
       <TimelineScreen
@@ -360,6 +371,22 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onOp
           <View style={styles.actionText}>
             <Text style={styles.actionTitle}>Spiel erstellen</Text>
             <Text style={styles.actionSub}>Neues Spiel anlegen & Ticker-Code generieren</Text>
+          </View>
+          <ChevronRight size={20} color={MUTED} />
+        </TouchableOpacity>
+
+        {/* BEITRAG ERSTELLEN */}
+        <TouchableOpacity
+          style={styles.actionCard}
+          onPress={() => setActiveScreen('post')}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.actionIcon, { backgroundColor: BG }]}>
+            <Newspaper size={26} color={B} />
+          </View>
+          <View style={styles.actionText}>
+            <Text style={styles.actionTitle}>Beitrag erstellen</Text>
+            <Text style={styles.actionSub}>News, Spielberichte & Updates veröffentlichen</Text>
           </View>
           <ChevronRight size={20} color={MUTED} />
         </TouchableOpacity>

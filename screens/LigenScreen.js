@@ -1,108 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  Image, ActivityIndicator, Modal, RefreshControl,
+  Image, ActivityIndicator, RefreshControl,
 } from 'react-native';
-import { Calendar, ListOrdered, ChevronDown, X, Check, MapPin } from 'lucide-react-native';
+import { Calendar, ListOrdered, MapPin } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { fetchLeagueTeamIds } from '../lib/leagueTeams';
+import { useFilter } from '../context/FilterContext';
+import { FilterEmptyPrompt } from '../components/MasterFilterBar';
 
 const B = '#1A2F6E';
 const R = '#C01830';
 const BG = '#F0F4FF';
 const BORDER = '#D1D8F0';
 const MUTED = '#6B7280';
-
-/** Adult/flag divisions shown in LigenScreen (add 'Jugend' here to re-enable youth leagues). */
-const ALLOWED_DIVISIONS = ['Herren', 'Damen', 'Flag'];
-
-function FilterDropdown({
-  label,
-  placeholder,
-  options,
-  value,
-  onChange,
-  loading = false,
-  disabled = false,
-  emptyText = 'Keine Einträge verfügbar.',
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = options.find((o) => o.value === value);
-
-  return (
-    <View style={styles.dropdownWrap}>
-      <Text style={styles.dropdownLabel}>{label}</Text>
-      <TouchableOpacity
-        style={[styles.dropdownTrigger, disabled && styles.dropdownDisabled]}
-        onPress={() => !disabled && !loading && setOpen(true)}
-        activeOpacity={0.8}
-        disabled={disabled || loading}
-      >
-        {loading ? (
-          <ActivityIndicator size="small" color={B} style={{ flex: 1 }} />
-        ) : (
-          <View style={styles.dropdownTriggerInner}>
-            {selected?.imageUrl ? (
-              <Image source={{ uri: selected.imageUrl }} style={styles.dropdownLogo} resizeMode="contain" />
-            ) : null}
-            <Text
-              style={[styles.dropdownText, !selected && styles.dropdownPlaceholder]}
-              numberOfLines={1}
-            >
-              {selected?.label ?? placeholder}
-            </Text>
-          </View>
-        )}
-        <ChevronDown size={18} color={disabled ? '#C4CAD4' : MUTED} />
-      </TouchableOpacity>
-
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setOpen(false)} />
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{label}</Text>
-              <TouchableOpacity onPress={() => setOpen(false)} hitSlop={8}>
-                <X size={22} color={B} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalList} keyboardShouldPersistTaps="handled">
-              {options.length === 0 ? (
-                <Text style={styles.modalEmpty}>{emptyText}</Text>
-              ) : (
-                options.map((option) => {
-                  const active = option.value === value;
-                  return (
-                    <TouchableOpacity
-                      key={String(option.value)}
-                      style={[styles.modalItem, active && styles.modalItemActive]}
-                      onPress={() => { onChange(option.value); setOpen(false); }}
-                      activeOpacity={0.75}
-                    >
-                      <View style={styles.modalItemLeft}>
-                        {option.imageUrl ? (
-                          <Image source={{ uri: option.imageUrl }} style={styles.modalItemLogo} resizeMode="contain" />
-                        ) : (
-                          <View style={styles.modalItemLogoFallback}>
-                            <Text style={styles.modalItemLogoLetter}>{option.label.charAt(0)}</Text>
-                          </View>
-                        )}
-                        <Text style={[styles.modalItemText, active && styles.modalItemTextActive]} numberOfLines={2}>
-                          {option.label}
-                        </Text>
-                      </View>
-                      {active && <Check size={18} color={R} />}
-                    </TouchableOpacity>
-                  );
-                })
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-    </View>
-  );
-}
 
 function teamStatsRow(team) {
   const stats = Array.isArray(team.team_stats) ? team.team_stats[0] : team.team_stats;
@@ -130,106 +41,19 @@ function formatGameDate(isoDate) {
 
 export default function LigenScreen() {
   const [activeSubTab, setActiveSubTab] = useState(0);
-
-  const [seasons, setSeasons] = useState([]);
-  const [seasonsLoading, setSeasonsLoading] = useState(true);
-  const [selectedSeasonId, setSelectedSeasonId] = useState(null);
-
-  const [regions, setRegions] = useState([]);
-  const [regionsLoading, setRegionsLoading] = useState(true);
-  const [selectedRegionId, setSelectedRegionId] = useState(null);
-
-  const [leagues, setLeagues] = useState([]);
-  const [leaguesLoading, setLeaguesLoading] = useState(false);
-  const [selectedLeagueId, setSelectedLeagueId] = useState(null);
+  const {
+    selectedLeagueId,
+    selectedSeasonId,
+    isFilterReady,
+    catalogLoading,
+    refreshCatalog,
+  } = useFilter();
 
   const [tableTeams, setTableTeams] = useState([]);
   const [scheduleGames, setScheduleGames] = useState([]);
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-
-  const loadSeasons = useCallback(async () => {
-    setSeasonsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('seasons')
-        .select('id, year_label, is_current')
-        .order('year_label', { ascending: false });
-      if (error) throw error;
-      const list = data ?? [];
-      setSeasons(list);
-      if (list.length > 0) {
-        const defaultSeason = list.find((s) => s.is_current) ?? list[0];
-        setSelectedSeasonId((prev) => prev ?? defaultSeason.id);
-      }
-    } catch (e) {
-      console.warn('LigenScreen seasons:', e?.message);
-    } finally {
-      setSeasonsLoading(false);
-    }
-  }, []);
-
-  const loadRegions = useCallback(async () => {
-    setRegionsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('regions')
-        .select('id, name, country_unit, region_logo_url')
-        .order('country_unit', { ascending: true });
-      if (error) throw error;
-      setRegions(data ?? []);
-      if ((data ?? []).length > 0) {
-        setSelectedRegionId((prev) => prev ?? data[0].id);
-      }
-    } catch (e) {
-      console.warn('LigenScreen regions:', e?.message);
-    } finally {
-      setRegionsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadSeasons();
-    loadRegions();
-  }, [loadSeasons, loadRegions]);
-
-  useEffect(() => {
-    if (!selectedRegionId) {
-      setLeagues([]);
-      setSelectedLeagueId(null);
-      return;
-    }
-
-    let cancelled = false;
-    (async () => {
-      setLeaguesLoading(true);
-      setSelectedLeagueId(null);
-      try {
-        const { data, error } = await supabase
-          .from('leagues')
-          .select('id, name, division')
-          .eq('region_id', selectedRegionId)
-          .in('division', ALLOWED_DIVISIONS)
-          .order('name', { ascending: true });
-        if (error) throw error;
-        if (cancelled) return;
-        setLeagues(data ?? []);
-        if ((data ?? []).length > 0) {
-          setSelectedLeagueId(data[0].id);
-        }
-      } catch (e) {
-        if (!cancelled) {
-          console.warn('LigenScreen leagues:', e?.message);
-          setLeagues([]);
-        }
-      } finally {
-        if (!cancelled) setLeaguesLoading(false);
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [selectedRegionId]);
 
   const loadLeagueContent = useCallback(async (silent = false) => {
     if (!selectedLeagueId || !selectedSeasonId) {
@@ -289,75 +113,21 @@ export default function LigenScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadSeasons(), loadRegions()]);
+    await refreshCatalog();
     await loadLeagueContent(true);
     setRefreshing(false);
   };
 
-  const seasonOptions = seasons.map((s) => ({
-    value: s.id,
-    label: s.is_current ? `${s.year_label} (aktuell)` : s.year_label,
-  }));
-
-  const regionOptions = regions.map((r) => ({
-    value: r.id,
-    label: r.country_unit || r.name,
-    imageUrl: r.region_logo_url,
-  }));
-
-  const leagueOptions = leagues.map((l) => ({
-    value: l.id,
-    label: l.name,
-  }));
-
-  const selectedSeason = seasons.find((s) => s.id === selectedSeasonId);
-  const selectedLeague = leagues.find((l) => l.id === selectedLeagueId);
-  const selectedRegion = regions.find((r) => r.id === selectedRegionId);
+  if (!isFilterReady && !catalogLoading) {
+    return (
+      <View style={styles.container}>
+        <FilterEmptyPrompt style={{ marginTop: 16 }} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* Filter: Saison + Region + Liga */}
-      <View style={styles.filterSection}>
-        <FilterDropdown
-          label="SAISON"
-          placeholder="Saison wählen…"
-          options={seasonOptions}
-          value={selectedSeasonId}
-          onChange={(v) => setSelectedSeasonId(v)}
-          loading={seasonsLoading}
-          emptyText="Keine Saisons gefunden."
-        />
-        <FilterDropdown
-          label="LANDESVERBAND"
-          placeholder="Region wählen…"
-          options={regionOptions}
-          value={selectedRegionId}
-          onChange={(v) => setSelectedRegionId(Number(v))}
-          loading={regionsLoading}
-          emptyText="Keine Regionen gefunden."
-        />
-        <FilterDropdown
-          label="LIGA"
-          placeholder={!selectedRegionId ? 'Zuerst Region wählen' : 'Liga wählen…'}
-          options={leagueOptions}
-          value={selectedLeagueId}
-          onChange={(v) => setSelectedLeagueId(v)}
-          loading={leaguesLoading}
-          disabled={!selectedRegionId}
-          emptyText="Keine Ligen in dieser Region."
-        />
-      </View>
-
-      {(selectedSeason || selectedRegion || selectedLeague) && (
-        <Text style={styles.filterSummary} numberOfLines={1}>
-          {[
-            selectedSeason?.year_label,
-            selectedRegion?.country_unit || selectedRegion?.name,
-            selectedLeague?.name,
-          ].filter(Boolean).join(' · ')}
-        </Text>
-      )}
-
       {/* Tabelle / Spielplan */}
       <View style={styles.subTabContainer}>
         <TouchableOpacity
@@ -382,11 +152,15 @@ export default function LigenScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={B} colors={[B]} />}
       >
         {!selectedLeagueId || !selectedSeasonId ? (
-          <View style={styles.emptyBox}>
-            <MapPin size={28} color={MUTED} />
-            <Text style={styles.emptyTitle}>Filter wählen</Text>
-            <Text style={styles.emptySub}>Wähle Saison, Landesverband und Liga.</Text>
-          </View>
+          catalogLoading ? (
+            <ActivityIndicator color={B} style={{ marginTop: 40 }} />
+          ) : (
+            <View style={styles.emptyBox}>
+              <MapPin size={28} color={MUTED} />
+              <Text style={styles.emptyTitle}>Liga wählen</Text>
+              <Text style={styles.emptySub}>Bitte wähle eine Liga aus, um zu starten.</Text>
+            </View>
+          )
         ) : contentLoading ? (
           <ActivityIndicator color={B} style={{ marginTop: 40 }} />
         ) : contentError ? (
@@ -492,88 +266,6 @@ export default function LigenScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
-
-  filterSection: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    gap: 10,
-  },
-  filterSummary: {
-    color: MUTED,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    paddingHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 2,
-  },
-
-  dropdownWrap: { marginBottom: 2 },
-  dropdownLabel: {
-    color: MUTED,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    marginBottom: 6,
-  },
-  dropdownTrigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: BG,
-    borderWidth: 1.5,
-    borderColor: BORDER,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    minHeight: 48,
-  },
-  dropdownDisabled: { opacity: 0.55 },
-  dropdownTriggerInner: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  dropdownLogo: { width: 24, height: 24, borderRadius: 6 },
-  dropdownText: { flex: 1, color: B, fontSize: 14, fontWeight: '700' },
-  dropdownPlaceholder: { color: '#9CA3AF', fontWeight: '600' },
-
-  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-  modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
-  modalSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '70%',
-    paddingBottom: 24,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-  },
-  modalTitle: { color: B, fontSize: 16, fontWeight: '800' },
-  modalList: { paddingHorizontal: 12 },
-  modalEmpty: { color: MUTED, fontSize: 14, textAlign: 'center', paddingVertical: 24 },
-  modalItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    marginTop: 4,
-  },
-  modalItemActive: { backgroundColor: BG },
-  modalItemLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  modalItemLogo: { width: 32, height: 32, borderRadius: 8 },
-  modalItemLogoFallback: {
-    width: 32, height: 32, borderRadius: 8,
-    backgroundColor: BG, alignItems: 'center', justifyContent: 'center',
-  },
-  modalItemLogoLetter: { color: B, fontSize: 14, fontWeight: '800' },
-  modalItemText: { flex: 1, color: B, fontSize: 15, fontWeight: '600' },
-  modalItemTextActive: { color: R, fontWeight: '800' },
 
   subTabContainer: {
     flexDirection: 'row',

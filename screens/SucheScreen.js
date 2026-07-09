@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
   Image,
 } from 'react-native';
-import { Search, X, Clock, TrendingUp, Users, Trophy } from 'lucide-react-native';
+import { Search, X, Clock, Users, Trophy } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import TeamProfileScreen from './TeamProfileScreen';
 import PlayerProfileScreen from './PlayerProfileScreen';
@@ -26,13 +26,7 @@ const CATEGORIES = [
   { key: 'media',   label: 'Fotos & Videos' },
 ];
 
-const TRENDING = [
-  { tag: 'Saisonauftakt 2026',         count: '4.2k Klicks' },
-  { tag: 'ELF Gewinner',               count: '2.8k Klicks' },
-  { tag: 'Stuttgart Scorpions Roster', count: '1.9k Klicks' },
-];
-
-export default function SucheScreen() {
+export default function SucheScreen({ onOpenChat }) {
   const [searchQuery, setSearchQuery]       = useState('');
   const [isFocused, setIsFocused]           = useState(false);
   const [activeCategory, setActiveCategory] = useState('all');
@@ -240,6 +234,10 @@ export default function SucheScreen() {
       <PlayerProfileScreen
         profileId={viewPlayerId}
         onBack={() => setViewPlayerId(null)}
+        onOpenChat={(conversationId) => {
+          setViewPlayerId(null);
+          onOpenChat?.(conversationId);
+        }}
       />
     );
   }
@@ -406,22 +404,6 @@ export default function SucheScreen() {
             <View style={styles.divider} />
           </View>
         )}
-
-        {/* GERADE ANGESAGT */}
-        <Text style={styles.sectionTitle}>GERADE ANGESAGT</Text>
-        <View style={styles.trendingContainer}>
-          {TRENDING.map((topic, index) => (
-            <TouchableOpacity key={index} style={styles.trendingRow} activeOpacity={0.7}>
-              <View style={styles.trendingIconCircle}>
-                <TrendingUp size={16} color="#C01830" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.trendingTagText}>{topic.tag}</Text>
-                <Text style={styles.trendingCountText}>{topic.count}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
 
         <View style={{ height: 150 }} />
       </ScrollView>

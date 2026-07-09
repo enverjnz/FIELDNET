@@ -9,7 +9,7 @@ import {
   ArrowLeft, Edit2, Save, X, Users, Phone,
   Mail, Globe, AtSign, MapPin, Clock, Trophy,
   Check, Trash2, ChevronDown, Calendar, Camera,
-  UserPlus, UserMinus,
+  UserPlus, UserMinus, Newspaper,
 } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { resolveTeamLogoUrl } from '../lib/uploadImage';
@@ -28,6 +28,9 @@ import {
   saveTeamLeagueEnrollment,
   countTeamOpenGames,
 } from '../lib/leagueTeams';
+import { fetchPostsForTeam } from '../lib/teamPosts';
+import PostCard from '../components/PostCard';
+import PostCreateScreen from './PostCreateScreen';
 import FullscreenImageModal from '../components/FullscreenImageModal';
 import TimelineScreen from './TimelineScreen';
 
@@ -289,11 +292,14 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
   const [leagueSuccess, setLeagueSuccess] = useState(null);
   const [teamStats, setTeamStats] = useState(null);
   const [timelineGameId, setTimelineGameId] = useState(null);
+  const [editingPost, setEditingPost] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [showFollowButton, setShowFollowButton] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
   const [followMessage, setFollowMessage] = useState(null);
+  const [posts, setPosts] = useState([]);
+  const [postsLoading, setPostsLoading] = useState(false);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -413,7 +419,21 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
     setGames(gamesData ?? []);
     setTeamStats(statsData ?? null);
     await loadFollowState();
+    await loadPosts();
     setLoading(false);
+  };
+
+  const loadPosts = async () => {
+    setPostsLoading(true);
+    try {
+      const list = await fetchPostsForTeam(teamId);
+      setPosts(list);
+    } catch (e) {
+      console.warn('TeamProfile posts:', e?.message);
+      setPosts([]);
+    } finally {
+      setPostsLoading(false);
+    }
   };
 
   const loadFollowState = async () => {
@@ -694,6 +714,20 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
     );
   };
 
+  if (editingPost) {
+    return (
+      <PostCreateScreen
+        teamId={teamId}
+        post={editingPost}
+        onBack={() => setEditingPost(null)}
+        onSuccess={() => {
+          setEditingPost(null);
+          loadData();
+        }}
+      />
+    );
+  }
+
   if (timelineGameId) {
     return (
       <TimelineScreen
@@ -947,6 +981,35 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
             </>
           )}
         </View>
+
+        {/* BEITRÄGE */}
+        {!isEditing && (
+          <>
+            <View style={styles.kaderHeader}>
+              <Text style={styles.sectionTitle}>BEITRÄGE</Text>
+              <Text style={styles.kaderCount}>{posts.length} News</Text>
+            </View>
+            {postsLoading ? (
+              <ActivityIndicator color={B} style={{ marginVertical: 20 }} />
+            ) : posts.length === 0 ? (
+              <View style={styles.emptyGames}>
+                <Newspaper size={28} color={MUTED} />
+                <Text style={styles.emptyGamesText}>Noch keine Beiträge veröffentlicht</Text>
+              </View>
+            ) : (
+              <View style={{ marginBottom: 18 }}>
+                {posts.map((post) => (
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    team={team}
+                    onEdit={!readOnly && !isEditing ? (p) => setEditingPost(p) : undefined}
+                  />
+                ))}
+              </View>
+            )}
+          </>
+        )}
 
         {/* TRAINING */}
         <Text style={styles.sectionTitle}>TRAINING</Text>

@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  Alert,
 } from 'react-native';
 import {
   ArrowLeft,
@@ -21,8 +22,10 @@ import {
   Flag,
   Users,
   Trophy,
+  MessageCircle,
 } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
+import { getOrCreateDirectConversation } from '../lib/chat';
 import FullscreenImageModal from '../components/FullscreenImageModal';
 
 const B = '#1A2F6E';
@@ -51,18 +54,23 @@ function StatNumCard({ label, value }) {
   );
 }
 
-export default function PlayerProfileScreen({ profileId, onBack }) {
+export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
   const [profile, setProfile] = useState(null);
   const [teams, setTeams] = useState([]);
   const [playerStats, setPlayerStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fullscreenImage, setFullscreenImage] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [messageLoading, setMessageLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!cancelled) setCurrentUserId(user?.id ?? null);
+
       const [{ data: prof }, { data: memberships }, { data: stats }] = await Promise.all([
         supabase
           .from('profiles')
@@ -124,6 +132,20 @@ export default function PlayerProfileScreen({ profileId, onBack }) {
     ? new Date(profile.created_at).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
     : null;
 
+  const canMessage = currentUserId && currentUserId !== profileId;
+
+  const handleMessage = async () => {
+    setMessageLoading(true);
+    try {
+      const conversationId = await getOrCreateDirectConversation(profileId);
+      onOpenChat?.(conversationId);
+    } catch (e) {
+      Alert.alert('Fehler', e?.message ?? 'Chat konnte nicht geöffnet werden.');
+    } finally {
+      setMessageLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -151,6 +173,22 @@ export default function PlayerProfileScreen({ profileId, onBack }) {
             </View>
           ) : null}
           {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
+          {canMessage ? (
+            <TouchableOpacity
+              style={styles.messageBtn}
+              onPress={handleMessage}
+              disabled={messageLoading}
+              activeOpacity={0.85}
+            >
+              {messageLoading
+                ? <ActivityIndicator size="small" color="#FFFFFF" />
+                : <>
+                    <MessageCircle size={18} color="#FFFFFF" />
+                    <Text style={styles.messageBtnText}>Nachricht</Text>
+                  </>
+              }
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {teams.length > 0 && (
@@ -250,6 +288,19 @@ const styles = StyleSheet.create({
   },
   positionPillText: { color: B, fontSize: 12, fontWeight: '700' },
   bio: { color: MUTED, fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 12, paddingHorizontal: 8 },
+  messageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+    backgroundColor: B,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    minWidth: 160,
+  },
+  messageBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
 
   sectionTitle: {
     color: MUTED,

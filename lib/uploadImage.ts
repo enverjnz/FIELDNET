@@ -3,6 +3,7 @@ import { supabase } from './supabase';
 export const STORAGE_BUCKETS = {
   profileAvatars: 'profile_avatars',
   teamLogos: 'team_logos',
+  postImages: 'post_images',
 } as const;
 
 export function isLocalImageUri(uri: string | null | undefined): boolean {
@@ -69,6 +70,10 @@ export async function uploadProfileAvatar(userId: string, localUri: string): Pro
 
 export async function uploadTeamLogo(teamId: string, localUri: string): Promise<string> {
   return uploadImage(STORAGE_BUCKETS.teamLogos, `${teamId}/logo`, localUri);
+}
+
+export async function uploadPostImage(postId: string, localUri: string): Promise<string> {
+  return uploadImage(STORAGE_BUCKETS.postImages, `${postId}/${Date.now()}`, localUri);
 }
 
 /** Lokalen URI hochladen oder bestehende Remote-URL unverändert zurückgeben. */
