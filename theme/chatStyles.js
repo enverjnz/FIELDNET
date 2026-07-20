@@ -1,0 +1,361 @@
+import { StyleSheet } from 'react-native';
+
+export function createChatListStyles(c) {
+  const isDark = c.mode === 'dark';
+  const highlightBg = isDark ? '#2A1520' : '#FFF5F7';
+
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.background },
+    sectionTitle: {
+      color: c.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 1,
+      marginLeft: 16, marginBottom: 10,
+    },
+    dmSection: { marginTop: 16, paddingBottom: 4 },
+    dmScroll: { paddingLeft: 16 },
+    dmAvatarWrapper: { alignItems: 'center', marginRight: 16, width: 65 },
+    dmAvatarCircleWrap: {
+      position: 'relative',
+      width: 52,
+      height: 52,
+    },
+    dmUnreadBadge: {
+      position: 'absolute',
+      top: -2,
+      right: -4,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      paddingHorizontal: 4,
+      backgroundColor: '#C01830',
+      borderWidth: 1.5,
+      borderColor: c.background,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 2,
+    },
+    dmUnreadBadgeText: {
+      color: '#FFFFFF',
+      fontSize: 10,
+      fontWeight: '800',
+      lineHeight: 12,
+    },
+    avatarCircle: {
+      backgroundColor: c.card, borderColor: c.border, borderWidth: 1.5,
+      justifyContent: 'center', alignItems: 'center',
+    },
+    avatarLetter: { color: c.text, fontSize: 16, fontWeight: '800' },
+    dmName: {
+      color: c.textMuted, fontSize: 10, fontWeight: '600',
+      marginTop: 6, textAlign: 'center', width: '100%',
+    },
+    divider: { height: 1, backgroundColor: c.border, marginHorizontal: 16, marginVertical: 16 },
+    channelSection: { flex: 1 },
+    channelHeader: {
+      flexDirection: 'row', justifyContent: 'space-between',
+      alignItems: 'center', paddingRight: 16,
+    },
+    channelScroll: { flex: 1, paddingHorizontal: 16 },
+    channelCard: {
+      flexDirection: 'row', backgroundColor: c.card,
+      borderColor: c.border, borderWidth: 1, borderRadius: 14,
+      padding: 12, marginBottom: 10, alignItems: 'center', gap: 12,
+    },
+    channelCardHighlighted: {
+      borderColor: c.accent,
+      borderWidth: 2,
+      backgroundColor: highlightBg,
+    },
+    selectedLeagueBanner: {
+      backgroundColor: c.card,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: c.accent,
+      padding: 14,
+      marginBottom: 12,
+      gap: 6,
+    },
+    selectedLeagueTitle: { color: c.text, fontSize: 14, fontWeight: '800' },
+    selectedLeagueSub: { color: c.textMuted, fontSize: 12, lineHeight: 17 },
+    channelIconCircle: {
+      width: 44, height: 44, borderRadius: 12,
+      backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center',
+    },
+    channelInfo: { flex: 1 },
+    channelMetaRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+    channelName: { color: c.text, fontSize: 14, fontWeight: '800', flex: 1 },
+    channelTime: { color: c.textMuted, fontSize: 10, fontWeight: '600' },
+    channelSubText: { color: c.textMuted, fontSize: 11, marginTop: 2 },
+    channelLastMsg: { color: c.text, fontSize: 12, marginTop: 4, opacity: 0.75 },
+    emptyBox: {
+      alignItems: 'center', justifyContent: 'center',
+      paddingVertical: 32, paddingHorizontal: 24,
+      backgroundColor: c.card, borderRadius: 16,
+      borderWidth: 1, borderColor: c.border, gap: 8,
+    },
+    emptyTitle: { color: c.text, fontSize: 15, fontWeight: '800', textAlign: 'center' },
+    emptySub: { color: c.textMuted, fontSize: 13, fontWeight: '500', textAlign: 'center', lineHeight: 18 },
+    joinCta: {
+      marginTop: 8, backgroundColor: c.accent, borderRadius: 12,
+      paddingHorizontal: 16, paddingVertical: 10,
+    },
+    joinCtaText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+  });
+}
+
+export function createLeagueForumStyles(c) {
+  const isDark = c.mode === 'dark';
+  const avatarBg = isDark ? '#3B5080' : '#1A2F6E';
+
+  return StyleSheet.create({
+    container: { flex: 1 },
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      paddingHorizontal: 24,
+    },
+    loadingHint: { color: c.textMuted, fontSize: 13, fontWeight: '600' },
+    titleRow: {
+      paddingHorizontal: 16,
+      paddingBottom: 8,
+      gap: 2,
+    },
+    forumLeagueName: {
+      color: c.text,
+      fontSize: 16,
+      fontWeight: '900',
+    },
+    forumHint: {
+      color: c.textMuted,
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    list: { flex: 1 },
+    listContent: {
+      paddingHorizontal: 16,
+      paddingTop: 4,
+    },
+    listContentEmpty: {
+      flexGrow: 1,
+      justifyContent: 'center',
+    },
+    emptyWrap: {
+      alignItems: 'center',
+      paddingVertical: 40,
+      paddingHorizontal: 20,
+      gap: 6,
+    },
+    emptyTitle: { color: c.text, fontSize: 15, fontWeight: '800', textAlign: 'center' },
+    emptySub: {
+      color: c.textMuted,
+      fontSize: 13,
+      fontWeight: '500',
+      textAlign: 'center',
+      lineHeight: 18,
+    },
+    postCard: {
+      backgroundColor: c.card,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: c.border,
+      padding: 14,
+      marginBottom: 10,
+    },
+    postCardMine: {
+      borderColor: isDark ? '#5B7FD4' : '#1A2F6E',
+    },
+    postHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginBottom: 10,
+    },
+    postAvatar: { width: 36, height: 36, borderRadius: 10 },
+    postAvatarPlaceholder: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: avatarBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    postAvatarText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+    postMeta: { flex: 1 },
+    postAuthor: { color: c.text, fontSize: 13, fontWeight: '800' },
+    postTime: { color: c.textMuted, fontSize: 11, fontWeight: '600', marginTop: 1 },
+    postBody: { color: c.text, fontSize: 14, lineHeight: 21, fontWeight: '500' },
+    composer: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      gap: 8,
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      paddingBottom: 10,
+      borderTopWidth: 1,
+      borderTopColor: c.border,
+      backgroundColor: c.background,
+    },
+    input: {
+      flex: 1,
+      minHeight: 42,
+      maxHeight: 120,
+      backgroundColor: c.card,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.border,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      color: c.text,
+      fontSize: 14,
+    },
+    sendBtn: {
+      width: 42,
+      height: 42,
+      borderRadius: 12,
+      backgroundColor: c.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sendBtnDisabled: { opacity: 0.5 },
+  });
+}
+
+export function createChatRoomStyles(c) {
+  const isDark = c.mode === 'dark';
+  const mineBubbleBg = isDark ? '#3B5080' : '#1A2F6E';
+  const avatarBg = isDark ? '#3B5080' : '#1A2F6E';
+
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: c.background },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+    },
+    backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+    headerTitle: { flex: 1, color: c.text, fontSize: 16, fontWeight: '900', textAlign: 'center' },
+    listContent: { padding: 16, paddingBottom: 8, flexGrow: 1 },
+    emptyWrap: { paddingVertical: 40, alignItems: 'center' },
+    emptyText: { color: c.textMuted, fontSize: 14, fontWeight: '600', textAlign: 'center' },
+    msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 12 },
+    msgRowMine: { justifyContent: 'flex-end' },
+    msgAvatar: { width: 28, height: 28, borderRadius: 8 },
+    msgAvatarPlaceholder: {
+      width: 28, height: 28, borderRadius: 8, backgroundColor: avatarBg,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    msgAvatarText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
+    msgBubble: {
+      maxWidth: '78%',
+      borderRadius: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    msgBubbleOther: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+    msgBubbleMine: { backgroundColor: mineBubbleBg },
+    msgSender: { color: c.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 2 },
+    msgText: { color: c.text, fontSize: 14, lineHeight: 20, fontWeight: '500' },
+    msgTextMine: { color: '#FFFFFF' },
+    inputRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      gap: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderTopWidth: 1,
+      borderTopColor: c.border,
+      backgroundColor: c.background,
+    },
+    input: {
+      flex: 1,
+      minHeight: 42,
+      maxHeight: 120,
+      backgroundColor: c.card,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.border,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      color: c.text,
+      fontSize: 14,
+    },
+    sendBtn: {
+      width: 42, height: 42, borderRadius: 12,
+      backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center',
+    },
+    sendBtnDisabled: { opacity: 0.5 },
+  });
+}
+
+export function createLeagueChatJoinStyles(c) {
+  const isDark = c.mode === 'dark';
+
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: c.background },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+    },
+    backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, width: 72 },
+    backBtnText: { color: c.text, fontSize: 14, fontWeight: '700' },
+    headerTitle: { color: c.text, fontSize: 16, fontWeight: '900' },
+    hint: {
+      color: c.textMuted,
+      fontSize: 13,
+      lineHeight: 18,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      fontWeight: '500',
+    },
+    scroll: { paddingHorizontal: 16 },
+    card: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: c.card,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: c.border,
+      padding: 14,
+      marginBottom: 10,
+    },
+    cardIcon: {
+      width: 40, height: 40, borderRadius: 12,
+      backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center',
+    },
+    cardBody: { flex: 1 },
+    cardTitle: { color: c.text, fontSize: 15, fontWeight: '800' },
+    cardMeta: { color: c.textMuted, fontSize: 12, marginTop: 2 },
+    joinBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: c.accent,
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    joinText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
+    joinedBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: isDark ? '#0F2A22' : '#ECFDF5',
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderWidth: 1,
+      borderColor: isDark ? '#1A4035' : '#A7F3D0',
+    },
+    joinedText: { color: '#10B981', fontSize: 11, fontWeight: '800' },
+  });
+}

@@ -21,7 +21,7 @@ import PlayerProfileScreen from './PlayerProfileScreen';
 const CATEGORIES = [
   { key: 'all',     label: 'Alle'           },
   { key: 'teams',   label: 'Teams'          },
-  { key: 'players', label: 'Spieler'        },
+  { key: 'players', label: 'Nutzer'         },
   { key: 'leagues', label: 'Ligen'          },
   { key: 'news',    label: 'News'           },
   { key: 'media',   label: 'Fotos & Videos' },
@@ -210,12 +210,11 @@ export default function SucheScreen({ onOpenChat }) {
           });
         }
 
-        // Spieler
+        // Profile / Nutzer
         if (activeCategory === 'all' || activeCategory === 'players') {
           const { data: players } = await supabase
             .from('profiles')
-            .select('id, first_name, last_name, position, jersey_number, avatar')
-            .eq('role', 'player')
+            .select('id, first_name, last_name, position, jersey_number, avatar, role')
             .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
             .limit(activeCategory === 'players' ? 15 : 5);
 
@@ -226,6 +225,7 @@ export default function SucheScreen({ onOpenChat }) {
               id:        `p_${p.id}`,
               type:      'player',
               playerId:  p.id,
+              role:      p.role || 'player',
               name,
               meta:      [p.position, p.jersey_number ? `#${p.jersey_number}` : null]
                 .filter(Boolean)
@@ -347,10 +347,12 @@ export default function SucheScreen({ onOpenChat }) {
     return <Users size={15} color={colors.text} />;
   };
 
-  const renderBadgeLabel = (type) => {
-    if (type === 'player') return 'SPIELER';
-    if (type === 'league') return 'LIGA';
-    return 'TEAM';
+  const renderBadgeLabel = (item) => {
+    if (item.type === 'team') return 'TEAM';
+    if (item.type === 'league') return 'LIGA';
+    if (item.role === 'fan') return 'FAN';
+    if (item.role === 'coach') return 'COACH';
+    return 'SPIELER';
   };
 
   if (viewTeamId) {
@@ -391,7 +393,7 @@ export default function SucheScreen({ onOpenChat }) {
           <TextInput
             ref={inputRef}
             style={styles.searchInput}
-            placeholder="Teams, Spieler oder Ligen suchen..."
+            placeholder="Teams, Nutzer oder Ligen suchen..."
             placeholderTextColor={colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -449,7 +451,7 @@ export default function SucheScreen({ onOpenChat }) {
                     <Text style={
                       item.type === 'player' ? styles.badgePlayerText : styles.badgeTeamText
                     }>
-                      {renderBadgeLabel(item.type)}
+                      {renderBadgeLabel(item)}
                     </Text>
                   </View>
                 </TouchableOpacity>

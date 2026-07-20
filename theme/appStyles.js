@@ -21,9 +21,9 @@ export function createAppStyles(c: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
     },
-    logoBadge: {
-      backgroundColor: c.accent,
-      padding: 8,
+    logoImage: {
+      width: 36,
+      height: 36,
       borderRadius: 10,
       marginRight: 10,
     },
@@ -70,7 +70,7 @@ export function createAppStyles(c: ThemeColors) {
       width: 34,
       height: 34,
       borderRadius: 17,
-      backgroundColor: 'rgba(255,255,255,0.2)',
+      backgroundColor: 'rgba(0,0,0,0.28)',
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -87,10 +87,6 @@ export function createAppStyles(c: ThemeColors) {
       fontSize: 11,
       fontWeight: '600',
       marginTop: 1,
-    },
-    tickerReturnBannerClose: {
-      padding: 4,
-      marginLeft: 2,
     },
     navBarWrapper: {
       position: 'absolute',
@@ -125,6 +121,22 @@ export function createAppStyles(c: ThemeColors) {
     },
     navTabItemActive: {
       backgroundColor: c.accent,
+    },
+    navIconWrap: {
+      position: 'relative',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    navUnreadDot: {
+      position: 'absolute',
+      top: -2,
+      right: -4,
+      width: 9,
+      height: 9,
+      borderRadius: 5,
+      backgroundColor: '#C01830',
+      borderWidth: 1.5,
+      borderColor: '#1A2F6E',
     },
     drawerOverlay: {
       position: 'absolute',

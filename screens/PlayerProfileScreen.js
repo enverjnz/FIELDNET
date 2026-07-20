@@ -23,10 +23,19 @@ import {
   Users,
   Trophy,
   MessageCircle,
+  Images,
+  UserPlus,
+  UserMinus,
 } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { getOrCreateDirectConversation } from '../lib/chat';
+import {
+  followProfile,
+  unfollowProfile,
+  isUserFollowingProfile,
+} from '../lib/profileFollowers';
 import FullscreenImageModal from '../components/FullscreenImageModal';
+import ProfileGallery from '../components/ProfileGallery';
 
 const B = '#1A2F6E';
 const R = '#C01830';
@@ -62,6 +71,9 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [messageLoading, setMessageLoading] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
+  const [profileTab, setProfileTab] = useState('info'); // 'info' | 'gallery'
 
   useEffect(() => {
     let cancelled = false;
@@ -69,7 +81,8 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
     (async () => {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!cancelled) setCurrentUserId(user?.id ?? null);
+      const uid = user?.id ?? null;
+      if (!cancelled) setCurrentUserId(uid);
 
       const [{ data: prof }, { data: memberships }, { data: stats }] = await Promise.all([
         supabase
@@ -89,10 +102,20 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
           .maybeSingle(),
       ]);
 
+      let following = false;
+      if (uid && uid !== profileId) {
+        try {
+          following = await isUserFollowingProfile(uid, profileId);
+        } catch (e) {
+          console.warn('PlayerProfile follow state:', e?.message);
+        }
+      }
+
       if (!cancelled) {
         setProfile(prof ?? null);
         setTeams((memberships ?? []).map((m) => m.teams).filter(Boolean));
         setPlayerStats(stats ?? null);
+        setIsFollowing(following);
         setLoading(false);
       }
     })();
@@ -132,7 +155,7 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
     ? new Date(profile.created_at).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
     : null;
 
-  const canMessage = currentUserId && currentUserId !== profileId;
+  const canInteract = currentUserId && currentUserId !== profileId;
 
   const handleMessage = async () => {
     setMessageLoading(true);
@@ -143,6 +166,24 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
       Alert.alert('Fehler', e?.message ?? 'Chat konnte nicht geöffnet werden.');
     } finally {
       setMessageLoading(false);
+    }
+  };
+
+  const toggleFollow = async () => {
+    if (!canInteract || followBusy) return;
+    setFollowBusy(true);
+    try {
+      if (isFollowing) {
+        await unfollowProfile(currentUserId, profileId);
+        setIsFollowing(false);
+      } else {
+        await followProfile(currentUserId, profileId);
+        setIsFollowing(true);
+      }
+    } catch (e) {
+      Alert.alert('Fehler', e?.message ?? 'Aktion konnte nicht ausgeführt werden.');
+    } finally {
+      setFollowBusy(false);
     }
   };
 
@@ -166,6 +207,17 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
               <Text style={styles.avatarInitials}>{initials}</Text>
             </View>
           )}
+          <View style={styles.rolePill}>
+            <Text style={styles.rolePillText}>
+              {profile.role === 'player'
+                ? '🏈 Spieler'
+                : profile.role === 'fan'
+                  ? '⭐ Fan'
+                  : profile.role === 'coach'
+                    ? '🎯 Coach'
+                    : 'Nutzer'}
+            </Text>
+          </View>
           <Text style={styles.fullName}>{fullName}</Text>
           {profile.position ? (
             <View style={styles.positionPill}>
@@ -173,24 +225,76 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
             </View>
           ) : null}
           {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
-          {canMessage ? (
-            <TouchableOpacity
-              style={styles.messageBtn}
-              onPress={handleMessage}
-              disabled={messageLoading}
-              activeOpacity={0.85}
-            >
-              {messageLoading
-                ? <ActivityIndicator size="small" color="#FFFFFF" />
-                : <>
-                    <MessageCircle size={18} color="#FFFFFF" />
-                    <Text style={styles.messageBtnText}>Nachricht</Text>
+          {canInteract ? (
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                style={[styles.followBtn, isFollowing && styles.followBtnOutline]}
+                onPress={toggleFollow}
+                disabled={followBusy}
+                activeOpacity={0.85}
+              >
+                {followBusy ? (
+                  <ActivityIndicator size="small" color={isFollowing ? B : '#FFFFFF'} />
+                ) : (
+                  <>
+                    {isFollowing
+                      ? <UserMinus size={18} color={B} />
+                      : <UserPlus size={18} color="#FFFFFF" />
+                    }
+                    <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextOutline]}>
+                      {isFollowing ? 'Entfolgen' : 'Folgen'}
+                    </Text>
                   </>
-              }
-            </TouchableOpacity>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.messageBtn}
+                onPress={handleMessage}
+                disabled={messageLoading}
+                activeOpacity={0.85}
+              >
+                {messageLoading
+                  ? <ActivityIndicator size="small" color="#FFFFFF" />
+                  : <>
+                      <MessageCircle size={18} color="#FFFFFF" />
+                      <Text style={styles.messageBtnText}>Nachricht</Text>
+                    </>
+                }
+              </TouchableOpacity>
+            </View>
           ) : null}
         </View>
 
+        <View style={styles.profileTabs}>
+          <TouchableOpacity
+            style={[styles.profileTab, profileTab === 'info' && styles.profileTabActive]}
+            onPress={() => setProfileTab('info')}
+            activeOpacity={0.8}
+          >
+            <User size={16} color={profileTab === 'info' ? '#FFFFFF' : MUTED} />
+            <Text style={[styles.profileTabText, profileTab === 'info' && styles.profileTabTextActive]}>
+              Profil
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.profileTab, profileTab === 'gallery' && styles.profileTabActive]}
+            onPress={() => setProfileTab('gallery')}
+            activeOpacity={0.8}
+          >
+            <Images size={16} color={profileTab === 'gallery' ? '#FFFFFF' : MUTED} />
+            <Text style={[styles.profileTabText, profileTab === 'gallery' && styles.profileTabTextActive]}>
+              Galerie
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {profileTab === 'gallery' ? (
+          <>
+            <Text style={styles.sectionTitle}>GALERIE</Text>
+            <ProfileGallery profileId={profileId} canEdit={false} />
+          </>
+        ) : (
+        <>
         {teams.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>TEAM</Text>
@@ -240,6 +344,8 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
           <StatCard icon={<Flag size={18} color={B} />} label="Nationalität" value={profile.nationality} />
           <StatCard icon={<Users size={18} color={B} />} label="Mitglied seit" value={memberSince} />
         </View>
+        </>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -276,6 +382,17 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   avatarInitials: { color: B, fontSize: 32, fontWeight: '900' },
+  rolePill: {
+    marginTop: 4,
+    marginBottom: 8,
+    backgroundColor: BG,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  rolePillText: { color: B, fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
   fullName: { color: B, fontSize: 24, fontWeight: '900', textAlign: 'center' },
   positionPill: {
     marginTop: 8,
@@ -288,19 +405,70 @@ const styles = StyleSheet.create({
   },
   positionPillText: { color: B, fontSize: 12, fontWeight: '700' },
   bio: { color: MUTED, fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 12, paddingHorizontal: 8 },
-  messageBtn: {
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: 16,
+    width: '100%',
+    paddingHorizontal: 8,
+  },
+  followBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 16,
     backgroundColor: B,
     paddingVertical: 12,
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     borderRadius: 12,
-    minWidth: 160,
+    minHeight: 48,
+  },
+  followBtnOutline: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: B,
+  },
+  followBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  followBtnTextOutline: { color: B },
+  messageBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: R,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    minHeight: 48,
   },
   messageBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+
+  profileTabs: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 20,
+    backgroundColor: BG,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 4,
+  },
+  profileTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  profileTabActive: { backgroundColor: R },
+  profileTabText: { color: MUTED, fontSize: 13, fontWeight: '700' },
+  profileTabTextActive: { color: '#FFFFFF' },
 
   sectionTitle: {
     color: MUTED,

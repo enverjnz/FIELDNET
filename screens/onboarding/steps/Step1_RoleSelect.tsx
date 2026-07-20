@@ -7,6 +7,7 @@ type Props = {
   data: OnboardingData;
   update: (fields: Partial<OnboardingData>) => void;
   onNext: () => void;
+  onBack: () => void;
 };
 
 const ROLES = [
@@ -30,7 +31,7 @@ const ROLES = [
   },
 ] as const;
 
-export default function Step1_RoleSelect({ data, update, onNext }: Props) {
+export default function Step1_RoleSelect({ data, update, onNext, onBack }: Props) {
   const selectedRole = data.role;
 
   return (
@@ -38,6 +39,10 @@ export default function Step1_RoleSelect({ data, update, onNext }: Props) {
       contentContainerStyle={styles.container}
       keyboardShouldPersistTaps="handled"
     >
+      <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
+        <Text style={styles.backText}>← Zurück</Text>
+      </TouchableOpacity>
+
       <Text style={styles.title}>Als was möchtest du{'\n'}dich registrieren?</Text>
       <Text style={styles.subtitle}>
         Wähle deine Rolle. Du kannst sie später in deinem Profil ändern.
@@ -86,6 +91,8 @@ const R = '#C01830';
 
 const styles = StyleSheet.create({
   container: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 40 },
+  backBtn: { alignSelf: 'flex-start', marginBottom: 16 },
+  backText: { color: B, fontSize: 14, fontWeight: '600' },
   title: { color: B, fontSize: 26, fontWeight: '800', lineHeight: 34, marginBottom: 10 },
   subtitle: { color: '#6B7280', fontSize: 14, marginBottom: 32, lineHeight: 20 },
   cards: { gap: 12, marginBottom: 40 },

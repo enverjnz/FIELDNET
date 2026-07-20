@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   SafeAreaView,
   StatusBar,
   ScrollView,
@@ -20,12 +19,9 @@ import { supabase } from '../../lib/supabase';
 import { linkInvoiceCodeToTeam } from '../../lib/invoiceCode';
 import { ensureTeamStatsForTeam } from '../../lib/finishGame';
 import { getCurrentSeason } from '../../lib/leagueTeams';
-
-const B = '#1A2F6E';
-const R = '#C01830';
-const BG = '#F0F4FF';
-const BORDER = '#D1D8F0';
-const MUTED = '#6B7280';
+import { useTheme } from '../../context/ThemeContext';
+import { createCoachOnboardingStyles } from '../../theme/verwaltungStyles';
+import type { ThemeColors } from '../../theme/palettes';
 
 type Region = { id: number; country_unit: string | null; name: string; region_logo_url: string | null };
 type League = { id: string; name: string };
@@ -46,6 +42,9 @@ const PIPELINE_LABELS: Record<PipelineStep, string> = {
 };
 
 export default function CoachOnboardingWizard({ onBack, onSuccess, inviteCodeId }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createCoachOnboardingStyles(colors), [colors]);
+
   const [step, setStep] = useState(1);
 
   // Step 1
@@ -262,6 +261,8 @@ export default function CoachOnboardingWizard({ onBack, onSuccess, inviteCodeId 
         onChange={(v) => setSelectedRegionId(Number(v))}
         loading={regionsLoading}
         emptyText="Keine Regionen verfügbar."
+        styles={styles}
+        colors={colors}
       />
 
       <TouchableOpacity
@@ -306,6 +307,8 @@ export default function CoachOnboardingWizard({ onBack, onSuccess, inviteCodeId 
         loading={regionsLoading}
         fieldError={formErrors.region}
         emptyText="Keine Regionen verfügbar."
+        styles={styles}
+        colors={colors}
       />
 
       <SelectDropdown
@@ -322,6 +325,8 @@ export default function CoachOnboardingWizard({ onBack, onSuccess, inviteCodeId 
         fieldError={formErrors.league}
         emptyText={selectedRegionId ? 'Keine Ligen für diese Region.' : undefined}
         error={leaguesError}
+        styles={styles}
+        colors={colors}
       />
 
       <View style={styles.fieldWrap}>
@@ -331,7 +336,7 @@ export default function CoachOnboardingWizard({ onBack, onSuccess, inviteCodeId 
           value={name}
           onChangeText={(v) => { setName(v); setFormErrors((p) => ({ ...p, name: '' })); }}
           placeholder="z. B. Hellenstein Rascals"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.textMuted}
           autoComplete="off"
           textContentType="organizationName"
           autoCorrect={false}
@@ -348,7 +353,7 @@ export default function CoachOnboardingWizard({ onBack, onSuccess, inviteCodeId 
           value={shortName}
           onChangeText={(v) => { setShortName(v); setFormErrors((p) => ({ ...p, shortName: '' })); }}
           placeholder="z. B. HRSC"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.textMuted}
           autoCapitalize="characters"
           maxLength={8}
           autoComplete="off"
@@ -367,7 +372,7 @@ export default function CoachOnboardingWizard({ onBack, onSuccess, inviteCodeId 
           value={town}
           onChangeText={(v) => { setTown(v); setFormErrors((p) => ({ ...p, town: '' })); }}
           placeholder="z. B. Heidenheim"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.textMuted}
           autoComplete="off"
           textContentType="addressCity"
           autoCorrect={false}
@@ -391,11 +396,11 @@ export default function CoachOnboardingWizard({ onBack, onSuccess, inviteCodeId 
       <Text style={styles.stepSub}>Prüfe deine Angaben und registriere dein Team.</Text>
 
       <View style={styles.summaryCard}>
-        <SummaryRow label="Region" value={selectedRegion?.country_unit ?? selectedRegion?.name ?? '–'} />
-        <SummaryRow label="Team" value={name} />
-        <SummaryRow label="Kürzel" value={shortName} />
-        <SummaryRow label="Stadt" value={town} />
-        <SummaryRow label="Liga" value={selectedLeague?.name ?? '–'} last />
+        <SummaryRow label="Region" value={selectedRegion?.country_unit ?? selectedRegion?.name ?? '–'} styles={styles} />
+        <SummaryRow label="Team" value={name} styles={styles} />
+        <SummaryRow label="Kürzel" value={shortName} styles={styles} />
+        <SummaryRow label="Stadt" value={town} styles={styles} />
+        <SummaryRow label="Liga" value={selectedLeague?.name ?? '–'} last styles={styles} />
       </View>
 
       {submitError ? (
@@ -423,7 +428,7 @@ export default function CoachOnboardingWizard({ onBack, onSuccess, inviteCodeId 
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
 
       <View style={styles.topBar}>
         <TouchableOpacity
@@ -435,7 +440,7 @@ export default function CoachOnboardingWizard({ onBack, onSuccess, inviteCodeId 
           activeOpacity={0.75}
           disabled={isSubmitting}
         >
-          <ArrowLeft size={20} color={B} />
+          <ArrowLeft size={20} color={colors.text} />
           <Text style={styles.backBtnText}>{step === 1 ? 'Abbrechen' : 'Zurück'}</Text>
         </TouchableOpacity>
         <Text style={styles.stepIndicator}>Schritt {step} / 3</Text>
@@ -452,7 +457,7 @@ export default function CoachOnboardingWizard({ onBack, onSuccess, inviteCodeId 
       <Modal visible={isSubmitting && !!pipelineStep} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={styles.overlayCard}>
-            <ActivityIndicator size="large" color={B} />
+            <ActivityIndicator size="large" color={colors.text} />
             <Text style={styles.overlayTitle}>
               {pipelineStep ? PIPELINE_LABELS[pipelineStep] : 'Wird verarbeitet…'}
             </Text>
@@ -479,7 +484,17 @@ export default function CoachOnboardingWizard({ onBack, onSuccess, inviteCodeId 
   );
 }
 
-function SummaryRow({ label, value, last }: { label: string; value: string; last?: boolean }) {
+function SummaryRow({
+  label,
+  value,
+  last,
+  styles,
+}: {
+  label: string;
+  value: string;
+  last?: boolean;
+  styles: ReturnType<typeof createCoachOnboardingStyles>;
+}) {
   return (
     <View style={[styles.summaryRow, !last && styles.summaryRowBorder]}>
       <Text style={styles.summaryLabel}>{label}</Text>
@@ -501,6 +516,8 @@ type SelectDropdownProps = {
   fieldError?: string;
   disabled?: boolean;
   emptyText?: string;
+  styles: ReturnType<typeof createCoachOnboardingStyles>;
+  colors: ThemeColors;
 };
 
 function SelectDropdown({
@@ -514,6 +531,8 @@ function SelectDropdown({
   fieldError,
   disabled = false,
   emptyText = 'Keine Einträge verfügbar.',
+  styles,
+  colors,
 }: SelectDropdownProps) {
   const [open, setOpen] = useState(false);
   const selected = options.find((o) => o.value === value);
@@ -532,7 +551,7 @@ function SelectDropdown({
         disabled={disabled || loading}
       >
         {loading ? (
-          <ActivityIndicator size="small" color={B} style={{ flex: 1 }} />
+          <ActivityIndicator size="small" color={colors.text} style={{ flex: 1 }} />
         ) : (
           <View style={styles.dropdownTriggerContent}>
             {selected?.imageUrl ? (
@@ -547,7 +566,7 @@ function SelectDropdown({
             </Text>
           </View>
         )}
-        <ChevronDown size={18} color={disabled ? '#C4CAD4' : MUTED} />
+        <ChevronDown size={18} color={disabled ? colors.textMuted : colors.textMuted} />
       </TouchableOpacity>
       {!!fieldError && <Text style={styles.fieldError}>{fieldError}</Text>}
       {!!error && !fieldError && <Text style={styles.fieldError}>{error}</Text>}
@@ -559,7 +578,7 @@ function SelectDropdown({
             <View style={styles.dropdownSheetHeader}>
               <Text style={styles.dropdownSheetTitle}>{label}</Text>
               <TouchableOpacity onPress={() => setOpen(false)} hitSlop={8}>
-                <X size={22} color={B} />
+                <X size={22} color={colors.text} />
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.dropdownList} keyboardShouldPersistTaps="handled">
@@ -596,7 +615,7 @@ function SelectDropdown({
                           {option.label}
                         </Text>
                       </View>
-                      {active && <Check size={18} color={R} />}
+                      {active && <Check size={18} color={colors.accent} />}
                     </TouchableOpacity>
                   );
                 })
@@ -608,126 +627,3 @@ function SelectDropdown({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#FFFFFF' },
-  topBar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 12,
-  },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  backBtnText: { color: B, fontSize: 14, fontWeight: '700' },
-  stepIndicator: { color: MUTED, fontSize: 12, fontWeight: '600' },
-  progressRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 20, marginBottom: 8 },
-  progressSeg: { flex: 1, height: 4, borderRadius: 2, backgroundColor: BORDER },
-  progressSegActive: { backgroundColor: R },
-  content: { flex: 1 },
-  stepScroll: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40 },
-  stepTitle: { color: B, fontSize: 26, fontWeight: '900', marginBottom: 8 },
-  stepSub: { color: MUTED, fontSize: 14, lineHeight: 20, marginBottom: 24 },
-  highlight: { color: B, fontWeight: '700' },
-  dropdownTrigger: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: BG, borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 14,
-    borderWidth: 1.5, borderColor: BORDER, minHeight: 50,
-  },
-  dropdownDisabled: { opacity: 0.55, backgroundColor: '#F8FAFC' },
-  dropdownTriggerContent: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, marginRight: 8 },
-  dropdownTriggerLogo: { width: 28, height: 28, borderRadius: 6 },
-  dropdownText: { flex: 1, color: B, fontSize: 15, fontWeight: '600' },
-  dropdownPlaceholder: { color: '#9CA3AF', fontWeight: '400' },
-  dropdownOverlay: { flex: 1, justifyContent: 'flex-end' },
-  dropdownBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(26,47,110,0.4)' },
-  dropdownSheet: {
-    backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    maxHeight: '70%', paddingBottom: 24,
-  },
-  dropdownSheetHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 16,
-    borderBottomWidth: 1, borderBottomColor: BORDER,
-  },
-  dropdownSheetTitle: { color: B, fontSize: 16, fontWeight: '800' },
-  dropdownList: { maxHeight: 360 },
-  dropdownItem: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 16,
-    borderBottomWidth: 1, borderBottomColor: BORDER,
-  },
-  dropdownItemActive: { backgroundColor: BG },
-  dropdownItemLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  dropdownItemLogo: { width: 36, height: 36, borderRadius: 8 },
-  dropdownItemLogoPlaceholder: {
-    width: 36, height: 36, borderRadius: 8,
-    backgroundColor: BORDER, alignItems: 'center', justifyContent: 'center',
-  },
-  dropdownItemLogoFallback: { color: B, fontSize: 14, fontWeight: '800' },
-  dropdownItemText: { color: B, fontSize: 15, fontWeight: '500', flex: 1 },
-  dropdownItemTextActive: { color: B, fontWeight: '800' },
-  dropdownEmpty: { color: MUTED, fontSize: 14, textAlign: 'center', padding: 24 },
-  fieldWrap: { marginBottom: 16 },
-  fieldLabel: {
-    color: B, fontSize: 11, fontWeight: '700',
-    letterSpacing: 0.8, marginBottom: 6, textTransform: 'uppercase',
-  },
-  input: {
-    backgroundColor: BG, borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 14,
-    color: B, fontSize: 15, borderWidth: 1.5, borderColor: BORDER,
-  },
-  inputError: { borderColor: R },
-  fieldError: { color: R, fontSize: 11, marginTop: 4 },
-  primaryBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: R, borderRadius: 14, paddingVertical: 16,
-    marginTop: 8,
-  },
-  btnDisabled: { opacity: 0.6 },
-  primaryBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
-  errorBox: {
-    backgroundColor: '#FFF0F2', borderRadius: 12, padding: 14,
-    borderWidth: 1, borderColor: '#FECDD3', marginBottom: 16,
-  },
-  errorText: { color: R, fontSize: 13, lineHeight: 18 },
-  retryBtn: { marginTop: 10, alignSelf: 'flex-start' },
-  retryBtnText: { color: B, fontWeight: '700', fontSize: 13 },
-  emptyBox: {
-    backgroundColor: BG, borderRadius: 12, padding: 16,
-    borderWidth: 1, borderColor: BORDER, marginBottom: 8,
-  },
-  emptyText: { color: MUTED, fontSize: 13, textAlign: 'center' },
-  summaryCard: {
-    backgroundColor: BG, borderRadius: 16,
-    borderWidth: 1, borderColor: BORDER,
-    paddingHorizontal: 16, marginBottom: 24,
-  },
-  summaryRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    paddingVertical: 14, gap: 12,
-  },
-  summaryRowBorder: { borderBottomWidth: 1, borderBottomColor: BORDER },
-  summaryLabel: { color: MUTED, fontSize: 13, fontWeight: '600' },
-  summaryValue: { color: B, fontSize: 14, fontWeight: '800', flex: 1, textAlign: 'right' },
-  overlay: {
-    flex: 1, backgroundColor: 'rgba(26,47,110,0.45)',
-    justifyContent: 'center', alignItems: 'center', padding: 24,
-  },
-  overlayCard: {
-    backgroundColor: '#FFFFFF', borderRadius: 20, padding: 28,
-    width: '100%', maxWidth: 340, alignItems: 'center',
-  },
-  overlayTitle: {
-    color: B, fontSize: 16, fontWeight: '800',
-    marginTop: 16, marginBottom: 20, textAlign: 'center',
-  },
-  pipelineSteps: { alignSelf: 'stretch', gap: 10 },
-  pipelineRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  pipelineDot: {
-    width: 10, height: 10, borderRadius: 5, backgroundColor: BORDER,
-  },
-  pipelineDotActive: { backgroundColor: R },
-  pipelineDotDone: { backgroundColor: '#10B981' },
-  pipelineLabel: { color: MUTED, fontSize: 13 },
-  pipelineLabelActive: { color: B, fontWeight: '700' },
-});

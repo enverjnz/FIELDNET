@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  View, Text, TextInput, TouchableOpacity,
   SafeAreaView, StatusBar, ScrollView, ActivityIndicator,
   Alert, Image, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
@@ -8,14 +8,12 @@ import * as ImagePicker from 'expo-image-picker';
 import { ArrowLeft, ChevronDown, Camera, X, Check } from 'lucide-react-native';
 import { POST_CATEGORIES, createTeamPost, updateTeamPost } from '../lib/teamPosts';
 import { isLocalImageUri, uploadPostImage } from '../lib/uploadImage';
-
-const B = '#1A2F6E';
-const R = '#C01830';
-const BG = '#F0F4FF';
-const BORDER = '#D1D8F0';
-const MUTED = '#6B7280';
+import { useTheme } from '../context/ThemeContext';
+import { createPostCreateStyles } from '../theme/postStyles';
 
 export default function PostCreateScreen({ teamId, post = null, onBack, onSuccess }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createPostCreateStyles(colors), [colors]);
   const isEditing = Boolean(post?.id);
 
   const [title, setTitle] = useState(post?.title ?? '');
@@ -107,7 +105,7 @@ export default function PostCreateScreen({ teamId, post = null, onBack, onSucces
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -115,7 +113,7 @@ export default function PostCreateScreen({ teamId, post = null, onBack, onSucces
       >
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.75}>
-            <ArrowLeft size={20} color={B} />
+            <ArrowLeft size={20} color={colors.text} />
             <Text style={styles.backBtnText}>Zurück</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{isEditing ? 'Beitrag bearbeiten' : 'Beitrag erstellen'}</Text>
@@ -141,7 +139,7 @@ export default function PostCreateScreen({ teamId, post = null, onBack, onSucces
               value={title}
               onChangeText={setTitle}
               placeholder="z. B. Saisonauftakt steht bevor"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.textMuted}
               maxLength={120}
             />
           </View>
@@ -154,7 +152,7 @@ export default function PostCreateScreen({ teamId, post = null, onBack, onSucces
               activeOpacity={0.8}
             >
               <Text style={styles.selectText}>{category}</Text>
-              <ChevronDown size={18} color={MUTED} />
+              <ChevronDown size={18} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
@@ -165,7 +163,7 @@ export default function PostCreateScreen({ teamId, post = null, onBack, onSucces
               value={content}
               onChangeText={setContent}
               placeholder="Schreibe hier deinen Beitrag…"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.textMuted}
               multiline
               textAlignVertical="top"
             />
@@ -186,7 +184,7 @@ export default function PostCreateScreen({ teamId, post = null, onBack, onSucces
               </View>
             ) : (
               <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage} activeOpacity={0.85}>
-                <Camera size={22} color={B} />
+                <Camera size={22} color={colors.text} />
                 <Text style={styles.imagePickerText}>Bild auswählen</Text>
               </TouchableOpacity>
             )}
@@ -231,129 +229,3 @@ export default function PostCreateScreen({ teamId, post = null, onBack, onSucces
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-  },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, width: 72 },
-  backBtnText: { color: B, fontSize: 14, fontWeight: '700' },
-  headerTitle: { color: B, fontSize: 16, fontWeight: '900' },
-  successToast: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#059669',
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  successToastText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700', flex: 1 },
-  scroll: { padding: 20, paddingBottom: 40 },
-  fieldWrap: { marginBottom: 16 },
-  fieldLabel: { color: B, fontSize: 10, fontWeight: '800', letterSpacing: 0.8, marginBottom: 8 },
-  input: {
-    backgroundColor: BG,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: BORDER,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: B,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  inputMulti: { minHeight: 160, paddingTop: 12 },
-  selectTrigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: BG,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: BORDER,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  selectText: { color: B, fontSize: 15, fontWeight: '600' },
-  imagePickerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: BG,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: BORDER,
-    borderStyle: 'dashed',
-    paddingVertical: 28,
-  },
-  imagePickerText: { color: B, fontSize: 14, fontWeight: '700' },
-  imagePreviewWrap: { position: 'relative' },
-  imagePreview: {
-    width: '100%',
-    height: 180,
-    borderRadius: 12,
-    backgroundColor: BG,
-  },
-  removeImageBtn: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  submitBtn: {
-    backgroundColor: R,
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 52,
-    marginTop: 8,
-  },
-  submitBtnDisabled: { opacity: 0.7 },
-  submitBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(26,47,110,0.4)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 28,
-  },
-  modalTitle: {
-    color: B,
-    fontSize: 16,
-    fontWeight: '900',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-  },
-  modalItem: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-  },
-  modalItemActive: { backgroundColor: BG },
-  modalItemText: { color: B, fontSize: 15, fontWeight: '600' },
-  modalItemTextActive: { fontWeight: '900' },
-});

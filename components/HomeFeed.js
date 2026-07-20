@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import { useFilter } from '../context/FilterContext';
 import { useTheme } from '../context/ThemeContext';
@@ -59,6 +60,14 @@ function createStyles(c) {
       marginBottom: 4,
     },
     liveBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
+    timelineLink: {
+      marginTop: 10,
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: c.border,
+      alignItems: 'flex-end',
+    },
+    timelineLinkText: { color: c.accent, fontSize: 11, fontWeight: '800', letterSpacing: 0.4 },
     emptyPosts: {
       marginHorizontal: 16,
       marginBottom: 16,
@@ -74,7 +83,7 @@ function createStyles(c) {
   });
 }
 
-export default function HomeFeed() {
+export default function HomeFeed({ onOpenTimeline }) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -168,6 +177,15 @@ export default function HomeFeed() {
                     </View>
                     <Text style={[styles.gameTeam, styles.gameTeamAway]} numberOfLines={1}>{awayName}</Text>
                   </View>
+                  {onOpenTimeline ? (
+                    <TouchableOpacity
+                      style={styles.timelineLink}
+                      onPress={() => onOpenTimeline(game)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={styles.timelineLinkText}>Spielverlauf ansehen ➔</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               );
             })}

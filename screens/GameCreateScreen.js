@@ -22,22 +22,19 @@
  *   ON public.games FOR SELECT USING (true);
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  View, Text, TextInput, TouchableOpacity,
   SafeAreaView, StatusBar, ScrollView, ActivityIndicator,
   Alert, Share, Platform, Modal, Image, KeyboardAvoidingView, Pressable,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { ArrowLeft, Calendar, MapPin, Clock, Copy, Check, Search, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
+import { useTheme } from '../context/ThemeContext';
+import { createGameCreateStyles } from '../theme/gameCreateStyles';
 
-const B      = '#1A2F6E';
-const R      = '#C01830';
-const BG     = '#F0F4FF';
-const BORDER = '#D1D8F0';
-const MUTED  = '#6B7280';
-const GREEN  = '#10B981';
+const GREEN = '#10B981';
 
 function generateGameCode(shortName) {
   const base   = (shortName ?? 'TEAM').replace(/\s+/g, '').toUpperCase().slice(0, 4);
@@ -50,6 +47,9 @@ function generateGameCode(shortName) {
 }
 
 export default function GameCreateScreen({ teamId, onBack }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createGameCreateStyles(colors), [colors]);
+
   const [form, setForm] = useState({
     away_team_name: '',
     location:       '',
@@ -227,7 +227,7 @@ export default function GameCreateScreen({ teamId, onBack }) {
   };
 
   const copyCode = async () => {
-    await Share.share({ message: `Game-Code: ${createdCode}` });
+    await Share.share({ message: createdCode });
     setCodeCopied(true);
     setTimeout(() => setCodeCopied(false), 2000);
   };
@@ -235,7 +235,7 @@ export default function GameCreateScreen({ teamId, onBack }) {
   if (createdCode) {
     return (
       <SafeAreaView style={styles.safe}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
         <ScrollView contentContainerStyle={styles.scroll}>
           <View style={styles.successCard}>
             <View style={styles.successIcon}>
@@ -257,8 +257,8 @@ export default function GameCreateScreen({ teamId, onBack }) {
 
             <TouchableOpacity style={styles.copyBtn} onPress={copyCode} activeOpacity={0.85}>
               {codeCopied
-                ? <><Check size={18} color={B} /><Text style={styles.copyBtnText}>Geteilt!</Text></>
-                : <><Copy size={18} color={B} /><Text style={styles.copyBtnText}>Code teilen</Text></>
+                ? <><Check size={18} color={colors.text} /><Text style={styles.copyBtnText}>Geteilt!</Text></>
+                : <><Copy size={18} color={colors.text} /><Text style={styles.copyBtnText}>Code teilen</Text></>
               }
             </TouchableOpacity>
 
@@ -273,10 +273,10 @@ export default function GameCreateScreen({ teamId, onBack }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
 
       <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.75}>
-        <ArrowLeft size={20} color={B} />
+        <ArrowLeft size={20} color={colors.text} />
         <Text style={styles.backBtnText}>Zurück</Text>
       </TouchableOpacity>
 
@@ -342,7 +342,7 @@ export default function GameCreateScreen({ teamId, onBack }) {
                   <Text style={styles.opponentInitials}>{selectedOpponent.initials}</Text>
                 </View>
               ) : (
-                <Search size={17} color={MUTED} style={styles.inputIcon} />
+                <Search size={17} color={colors.textMuted} style={styles.inputIcon} />
               )}
               <TextInput
                 ref={opponentInputRef}
@@ -352,12 +352,12 @@ export default function GameCreateScreen({ teamId, onBack }) {
                 onFocus={() => setOpponentFocused(true)}
                 onBlur={handleOpponentBlur}
                 placeholder="Team suchen oder Name eingeben…"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
                 autoCorrect={false}
                 returnKeyType="done"
               />
               {isSearchingOpponent && !selectedOpponent ? (
-                <ActivityIndicator size="small" color={B} style={{ marginRight: 4 }} />
+                <ActivityIndicator size="small" color={colors.text} style={{ marginRight: 4 }} />
               ) : null}
               {form.away_team_name.length > 0 ? (
                 <TouchableOpacity
@@ -368,7 +368,7 @@ export default function GameCreateScreen({ teamId, onBack }) {
                   }}
                   hitSlop={8}
                 >
-                  <X size={16} color={MUTED} />
+                  <X size={16} color={colors.textMuted} />
                 </TouchableOpacity>
               ) : null}
             </Pressable>
@@ -378,7 +378,7 @@ export default function GameCreateScreen({ teamId, onBack }) {
               <View style={styles.suggestionsBox}>
                 {isSearchingOpponent && opponentSuggestions.length === 0 ? (
                   <View style={styles.suggestionEmpty}>
-                    <ActivityIndicator size="small" color={B} />
+                    <ActivityIndicator size="small" color={colors.text} />
                     <Text style={styles.suggestionEmptyText}>Teams werden gesucht…</Text>
                   </View>
                 ) : opponentSuggestions.length === 0 ? (
@@ -425,8 +425,8 @@ export default function GameCreateScreen({ teamId, onBack }) {
               onPress={() => setShowDatePicker(true)}
               activeOpacity={0.7}
             >
-              <Calendar size={17} color={gameDate ? B : MUTED} style={styles.inputIcon} />
-              <Text style={[styles.inputField, { paddingVertical: 13, color: gameDate ? B : '#9CA3AF' }]}>
+              <Calendar size={17} color={gameDate ? colors.text : colors.textMuted} style={styles.inputIcon} />
+              <Text style={[styles.inputField, { paddingVertical: 13, color: gameDate ? colors.text : colors.textMuted }]}>
                 {gameDate ? formatDate(gameDate) : 'Datum auswählen'}
               </Text>
             </TouchableOpacity>
@@ -441,8 +441,8 @@ export default function GameCreateScreen({ teamId, onBack }) {
               onPress={() => setShowTimePicker(true)}
               activeOpacity={0.7}
             >
-              <Clock size={17} color={gameTime ? B : MUTED} style={styles.inputIcon} />
-              <Text style={[styles.inputField, { paddingVertical: 13, color: gameTime ? B : '#9CA3AF' }]}>
+              <Clock size={17} color={gameTime ? colors.text : colors.textMuted} style={styles.inputIcon} />
+              <Text style={[styles.inputField, { paddingVertical: 13, color: gameTime ? colors.text : colors.textMuted }]}>
                 {gameTime ? formatTime(gameTime) : 'Uhrzeit auswählen'}
               </Text>
               {gameTime && (
@@ -451,7 +451,7 @@ export default function GameCreateScreen({ teamId, onBack }) {
                   hitSlop={8}
                   style={{ paddingRight: 4 }}
                 >
-                  <Text style={{ color: MUTED, fontSize: 18, lineHeight: 20 }}>×</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 18, lineHeight: 20 }}>×</Text>
                 </TouchableOpacity>
               )}
             </TouchableOpacity>
@@ -480,7 +480,7 @@ export default function GameCreateScreen({ teamId, onBack }) {
                       onChange={(_, d) => { if (d) setGameDate(d); }}
                       locale="de-DE"
                       style={{ alignSelf: 'center' }}
-                      accentColor={B}
+                      accentColor={colors.text}
                     />
                   </View>
                 </View>
@@ -537,13 +537,13 @@ export default function GameCreateScreen({ teamId, onBack }) {
           <View style={[styles.fieldWrap, { marginBottom: 0 }]}>
             <Text style={styles.fieldLabel}>SPIELORT *</Text>
             <View style={[styles.inputRow, !!errors.location && styles.inputRowError]}>
-              <MapPin size={17} color={MUTED} style={styles.inputIcon} />
+              <MapPin size={17} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={styles.inputField}
                 value={form.location}
                 onChangeText={(v) => set('location', v)}
                 placeholder="z. B. Sportpark Süd, Nürnberg"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
               />
             </View>
             {!!errors.location && <Text style={styles.fieldError}>{errors.location}</Text>}
@@ -572,179 +572,3 @@ export default function GameCreateScreen({ teamId, onBack }) {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safe:   { flex: 1, backgroundColor: '#FFFFFF' },
-  scroll: { paddingHorizontal: 20, paddingBottom: 20 },
-
-  backBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 20, paddingVertical: 14,
-  },
-  backBtnText: { color: B, fontSize: 14, fontWeight: '700' },
-
-  headerSection: { alignItems: 'center', marginBottom: 28, paddingTop: 8 },
-  headerIcon: {
-    width: 72, height: 72, borderRadius: 36, backgroundColor: R,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 16,
-    shadowColor: R, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 8,
-  },
-  headerTitle: { color: B, fontSize: 26, fontWeight: '900', marginBottom: 8 },
-  headerSub:   { color: MUTED, fontSize: 14, textAlign: 'center', lineHeight: 21 },
-  highlight:   { color: R, fontWeight: '700' },
-
-  sectionLabel: {
-    color: MUTED, fontSize: 10, fontWeight: '800',
-    letterSpacing: 1.2, marginBottom: 10,
-  },
-
-  toggleRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
-  toggleBtn: {
-    flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center',
-    backgroundColor: BG, borderWidth: 1.5, borderColor: BORDER,
-  },
-  toggleBtnActive:    { backgroundColor: B, borderColor: B },
-  toggleBtnActiveRed: { backgroundColor: R, borderColor: R },
-  toggleText:         { color: MUTED, fontSize: 14, fontWeight: '700' },
-  toggleTextActive:   { color: '#FFFFFF' },
-
-  card: {
-    backgroundColor: BG, borderRadius: 16,
-    borderWidth: 1, borderColor: BORDER,
-    padding: 16, marginBottom: 20,
-  },
-  fieldWrap:  { marginBottom: 14 },
-  fieldLabel: { color: B, fontSize: 10, fontWeight: '800', letterSpacing: 0.8, marginBottom: 6 },
-  fieldError: { color: R, fontSize: 11, marginTop: 4 },
-
-  inputRow: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#FFFFFF', borderRadius: 10,
-    borderWidth: 1.5, borderColor: BORDER, paddingHorizontal: 10,
-  },
-  inputRowFocused: {
-    borderColor: B,
-    shadowColor: B,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  inputRowPressable: { cursor: 'pointer' },
-  inputRowError: { borderColor: R },
-  inputIcon:     { marginRight: 8 },
-  inputField:    { flex: 1, color: B, fontSize: 14, paddingVertical: 12 },
-
-  opponentLogo: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    marginRight: 8,
-  },
-  opponentLogoPlaceholder: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: BG,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-  },
-  opponentInitials: { color: B, fontSize: 10, fontWeight: '800' },
-
-  suggestionsBox: {
-    marginTop: 6,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: BORDER,
-    overflow: 'hidden',
-  },
-  suggestionEmpty: {
-    paddingVertical: 16,
-    paddingHorizontal: 14,
-    alignItems: 'center',
-    gap: 6,
-  },
-  suggestionEmptyText: { color: B, fontSize: 13, fontWeight: '600' },
-  suggestionEmptySub: { color: MUTED, fontSize: 11, textAlign: 'center' },
-  suggestionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 10,
-  },
-  suggestionBorder: { borderBottomWidth: 1, borderBottomColor: BG },
-  suggestionIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: BG,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  suggestionAvatar: { width: 38, height: 38, borderRadius: 10 },
-  suggestionInitials: { color: B, fontSize: 12, fontWeight: '800' },
-  suggestionName: { color: B, fontSize: 14, fontWeight: '700' },
-  suggestionMeta: { color: MUTED, fontSize: 11, marginTop: 1 },
-
-  pickerModal: {
-    flex: 1, justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  pickerSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingBottom: 36,
-  },
-  pickerSheetHeader: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16,
-    borderBottomWidth: 1, borderBottomColor: BORDER,
-  },
-  pickerTitle:  { color: B, fontSize: 15, fontWeight: '700' },
-  pickerCancel: { color: MUTED, fontSize: 15 },
-  pickerDone:   { color: B, fontSize: 15, fontWeight: '700' },
-
-  createBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-    backgroundColor: R, borderRadius: 16, paddingVertical: 18,
-    shadowColor: R, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6,
-  },
-  createBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
-
-  // Success screen
-  successCard: {
-    flex: 1, alignItems: 'center', paddingTop: 40, paddingHorizontal: 8,
-  },
-  successIcon: {
-    width: 88, height: 88, borderRadius: 44, backgroundColor: GREEN,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 20,
-    shadowColor: GREEN, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8,
-  },
-  successTitle: { color: B, fontSize: 26, fontWeight: '900', marginBottom: 8 },
-  successSub:   { color: MUTED, fontSize: 14, marginBottom: 24 },
-  codeBox: {
-    backgroundColor: B, borderRadius: 18, paddingHorizontal: 32, paddingVertical: 20,
-    marginBottom: 16, width: '100%', alignItems: 'center',
-    shadowColor: B, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 8,
-  },
-  codeText: { color: '#FFFFFF', fontSize: 30, fontWeight: '900', letterSpacing: 4 },
-  codeHint: {
-    color: MUTED, fontSize: 13, textAlign: 'center', lineHeight: 20,
-    marginBottom: 24, paddingHorizontal: 8,
-  },
-  copyBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: BG, borderRadius: 14, paddingHorizontal: 24, paddingVertical: 14,
-    borderWidth: 1.5, borderColor: BORDER, marginBottom: 12, width: '100%', justifyContent: 'center',
-  },
-  copyBtnText: { color: B, fontSize: 14, fontWeight: '700' },
-  doneBtn: {
-    backgroundColor: R, borderRadius: 14, paddingVertical: 16,
-    width: '100%', alignItems: 'center',
-  },
-  doneBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
-});

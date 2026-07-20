@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 //Component import
 import { 
-  Text, View, 
+  Text, View, Image,
   ScrollView, TouchableOpacity, SafeAreaView, 
   StatusBar, Alert, ActivityIndicator, Keyboard } from 'react-native';
 
@@ -11,7 +11,7 @@ import { Trophy, Bell, Search,
   User, ChevronRight, Home, 
   LayoutGrid, CalendarDays, 
   MessageSquare, Users, 
-  PlusCircle, Menu, X, LogOut, Zap } from 'lucide-react-native';
+  PlusCircle, Menu, X, LogOut } from 'lucide-react-native';
 
 //Screen imports
 import { createAppStyles } from './theme/appStyles';
@@ -25,6 +25,7 @@ import TickerCodeScreen from './screens/TickerCodeScreen';
 import { fetchTickerGameById } from './lib/validateTickerAccess';
 import TimelineScreen from './screens/TimelineScreen.js';
 import ProfilScreen from './screens/ProfilScreen.js';
+import LivePulseDot from './components/LivePulseDot';
 import CoachOnboardingWizard from './screens/onboarding/CoachOnboardingWizard';
 import InvoiceCodeScreen from './screens/InvoiceCodeScreen';
 import TeamDashboardScreen from './screens/TeamDashboardScreen.js';
@@ -32,10 +33,15 @@ import PlayerOnboardingFlow from './screens/onboarding/PlayerOnboardingFlow';
 import LandingScreen from './screens/auth/LandingScreen';
 import LoginScreen from './screens/auth/LoginScreen';
 import SettingsScreen from './screens/SettingsScreen';
+import AccountInfoScreen from './screens/AccountInfoScreen';
 import DeleteProfileScreen from './screens/DeleteProfileScreen';
 import ReportProblemScreen from './screens/ReportProblemScreen';
+import FeedbackScreen from './screens/FeedbackScreen';
+import DatenschutzScreen from './screens/DatenschutzScreen';
+import ImpressumScreen from './screens/ImpressumScreen';
 import { supabase } from './lib/supabase';
 import { getCoachVerwaltungState, CoachPendingError } from './lib/invoiceCode';
+import { hasUnreadChats, subscribeToIncomingMessages } from './lib/chat';
 import HomeFeed from './components/HomeFeed';
 import MasterFilterBar from './components/MasterFilterBar';
 
@@ -55,7 +61,11 @@ export default function App() {
   const [authState, setAuthState]                 = useState('landing');
   const [authReady, setAuthReady]                 = useState(false);
   const [showSettings, setShowSettings]           = useState(false);
+  const [showAccountInfo, setShowAccountInfo]     = useState(false);
   const [showReportProblem, setShowReportProblem] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [showDatenschutz, setShowDatenschutz] = useState(false);
+  const [showImpressum, setShowImpressum] = useState(false);
   const [showDeleteProfile, setShowDeleteProfile] = useState(false);
   const [showTickerFlow, setShowTickerFlow]       = useState(false);
   const [tickerGame, setTickerGame]               = useState(null);
@@ -65,6 +75,8 @@ export default function App() {
   const [profilResetKey, setProfilResetKey]         = useState(0);
   const [isMenuOpen, setIsMenuOpen]                 = useState(false);
   const [pendingChatConversationId, setPendingChatConversationId] = useState(null);
+  const [dmChatOpen, setDmChatOpen] = useState(false);
+  const [hasUnreadChat, setHasUnreadChat] = useState(false);
 
   const bumpProfileRefresh = () => setProfileRefreshKey((k) => k + 1);
 
@@ -76,7 +88,11 @@ export default function App() {
     setSelectedGame(null);
     setIsMenuOpen(false);
     setShowSettings(false);
+    setShowAccountInfo(false);
     setShowReportProblem(false);
+    setShowFeedback(false);
+    setShowDatenschutz(false);
+    setShowImpressum(false);
     setShowDeleteProfile(false);
     setShowTeamDashboard(false);
     setDashboardTeamId(null);
@@ -94,7 +110,11 @@ export default function App() {
     setSelectedGame(null);
     setIsMenuOpen(false);
     setShowSettings(false);
+    setShowAccountInfo(false);
     setShowReportProblem(false);
+    setShowFeedback(false);
+    setShowDatenschutz(false);
+    setShowImpressum(false);
     setShowDeleteProfile(false);
     setShowTeamDashboard(false);
     setDashboardTeamId(null);
@@ -105,6 +125,7 @@ export default function App() {
     setTickerGame(null);
     if (reselect && index === 3) setSucheResetKey((k) => k + 1);
     if (reselect && index === 4) setProfilResetKey((k) => k + 1);
+    if (index !== 2) setDmChatOpen(false);
   };
 
   useEffect(() => {
@@ -131,16 +152,40 @@ export default function App() {
       } else if (event === 'SIGNED_OUT') {
         setAuthState('landing');
         setUserRole(null);
+        setHasUnreadChat(false);
       }
       loadRole();
     });
     return () => subscription.unsubscribe();
   }, []);
 
+  const refreshUnreadChat = useCallback(async () => {
+    try {
+      const unread = await hasUnreadChats();
+      setHasUnreadChat(unread);
+    } catch {
+      setHasUnreadChat(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authState !== 'app') return undefined;
+
+    refreshUnreadChat();
+    const unsubscribe = subscribeToIncomingMessages(() => {
+      refreshUnreadChat();
+    });
+    return unsubscribe;
+  }, [authState, refreshUnreadChat]);
+
   const handleAccountDeleted = () => {
     setShowDeleteProfile(false);
     setShowSettings(false);
+    setShowAccountInfo(false);
     setShowReportProblem(false);
+    setShowFeedback(false);
+    setShowDatenschutz(false);
+    setShowImpressum(false);
     setIsMenuOpen(false);
     setActiveTab(0);
     setSelectedGame(null);
@@ -150,6 +195,7 @@ export default function App() {
     setPendingInviteCodeId(null);
     setDashboardTeamId(null);
     setUserRole(null);
+    setHasUnreadChat(false);
     setShowTickerFlow(false);
     setTickerGame(null);
     setTickerSessionGame(null);
@@ -236,22 +282,6 @@ export default function App() {
     }
   };
 
-  const dismissTickerSession = () => {
-    setTickerSessionGame(null);
-    setTickerGame(null);
-  };
-
-  const confirmDismissTickerSession = () => {
-    Alert.alert(
-      'Ticker schließen',
-      'Möchtest du die Ticker-Session wirklich beenden? Du musst den Code erneut eingeben, um wieder zuzugreifen.',
-      [
-        { text: 'Abbrechen', style: 'cancel' },
-        { text: 'Schließen', style: 'destructive', onPress: dismissTickerSession },
-      ],
-    );
-  };
-
   const tickerSessionLabel = (game) => {
     if (!game) return 'Live-Ticker';
     const home = game.home_team?.name ?? game.home_team?.short_name ?? 'Heim';
@@ -264,7 +294,11 @@ export default function App() {
     && !isGameFinished(tickerSessionGame)
     && !showTickerFlow
     && !showSettings
+    && !showAccountInfo
     && !showReportProblem
+    && !showFeedback
+    && !showDatenschutz
+    && !showImpressum
     && !showDeleteProfile
     && !showTeamDashboard
     && !showInvoiceCode
@@ -339,9 +373,14 @@ export default function App() {
     }
   };
 
-  const showMasterFilter = !selectedGame && (activeTab === 0 || activeTab === 1 || activeTab === 2);
+  const showMasterFilter =
+    !selectedGame
+    && (activeTab === 0 || activeTab === 1 || activeTab === 2)
+    && !(activeTab === 2 && dmChatOpen);
 
-  const renderHomeTab = () => <HomeFeed />;
+  const renderHomeTab = () => (
+    <HomeFeed onOpenTimeline={(game) => setSelectedGame(game)} />
+  );
 
   const renderActiveTab = () => {
     switch (activeTab) {
@@ -354,6 +393,8 @@ export default function App() {
           <ChatScreen
             initialConversationId={pendingChatConversationId}
             onInitialConversationHandled={() => setPendingChatConversationId(null)}
+            onDmChatOpenChange={setDmChatOpen}
+            onUnreadChange={refreshUnreadChat}
           />
         );
       case 3:
@@ -397,7 +438,10 @@ export default function App() {
 
   if (authState === 'register') {
     return (
-      <PlayerOnboardingFlow onComplete={() => setAuthState('app')} />
+      <PlayerOnboardingFlow
+        onComplete={() => setAuthState('app')}
+        onBack={() => setAuthState('landing')}
+      />
     );
   }
 
@@ -408,9 +452,11 @@ export default function App() {
       {/* TOP BAR (HEADER) */}
       <View style={styles.header}>
         <View style={styles.logoContainer}>
-          <View style={styles.logoBadge}>
-            <Trophy size={20} color="#FFFFFF" />
-          </View>
+          <Image
+            source={require('./assets/fieldnet_logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
           
           <View>
             <Text style={styles.logoText}>FIELDNET<Text style={styles.logoGreen}> </Text></Text>
@@ -436,7 +482,7 @@ export default function App() {
           activeOpacity={0.88}
         >
           <View style={styles.tickerReturnBannerIcon}>
-            <Zap size={18} color="#FFFFFF" />
+            <LivePulseDot size={10} color="#EF4444" />
           </View>
           <View style={styles.tickerReturnBannerTextWrap}>
             <Text style={styles.tickerReturnBannerTitle}>Live-Ticker fortsetzen</Text>
@@ -446,16 +492,6 @@ export default function App() {
             </Text>
           </View>
           <ChevronRight size={20} color="#FFFFFF" />
-          <TouchableOpacity
-            onPress={(e) => {
-              e?.stopPropagation?.();
-              confirmDismissTickerSession();
-            }}
-            hitSlop={10}
-            style={styles.tickerReturnBannerClose}
-          >
-            <X size={18} color="#FFFFFF" />
-          </TouchableOpacity>
         </TouchableOpacity>
       )}
 
@@ -498,7 +534,10 @@ export default function App() {
             onPress={() => goToTab(2)}
             activeOpacity={0.75}
           >
-            <MessageSquare size={22} color={activeTab === 2 ? '#FFFFFF' : colors.navInactive} />
+            <View style={styles.navIconWrap}>
+              <MessageSquare size={22} color={activeTab === 2 ? '#FFFFFF' : colors.navInactive} />
+              {hasUnreadChat ? <View style={styles.navUnreadDot} /> : null}
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -530,9 +569,44 @@ export default function App() {
         </View>
       )}
 
+      {/* KONTOINFORMATIONEN */}
+      {showAccountInfo && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background, zIndex: 201 }}>
+          <AccountInfoScreen
+            onBack={() => setShowAccountInfo(false)}
+            onRoleChanged={(role) => {
+              setUserRole(role);
+              bumpProfileRefresh();
+            }}
+            onTeamsChanged={bumpProfileRefresh}
+          />
+        </View>
+      )}
+
+      {/* IMPRESSUM */}
+      {showImpressum && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background, zIndex: 202 }}>
+          <ImpressumScreen onBack={() => setShowImpressum(false)} />
+        </View>
+      )}
+
+      {/* DATENSCHUTZ */}
+      {showDatenschutz && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background, zIndex: 203 }}>
+          <DatenschutzScreen onBack={() => setShowDatenschutz(false)} />
+        </View>
+      )}
+
+      {/* FEEDBACK */}
+      {showFeedback && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background, zIndex: 204 }}>
+          <FeedbackScreen onBack={() => setShowFeedback(false)} />
+        </View>
+      )}
+
       {/* PROBLEM MELDEN */}
       {showReportProblem && (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#FFFFFF', zIndex: 205 }}>
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background, zIndex: 205 }}>
           <ReportProblemScreen onBack={() => setShowReportProblem(false)} />
         </View>
       )}
@@ -549,7 +623,7 @@ export default function App() {
 
       {/* LIVE-TICKER (Code-Gate → Ticker) */}
       {showTickerFlow && (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#FFFFFF', zIndex: 220 }}>
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background, zIndex: 220 }}>
           {tickerGame ? (
             <TickerScreen
               key={tickerGame.id}
@@ -569,7 +643,7 @@ export default function App() {
 
       {/* VEREINSVERWALTUNG – DASHBOARD (Trainer mit Team) */}
       {showTeamDashboard && dashboardTeamId && (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#FFFFFF', zIndex: 200 }}>
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background, zIndex: 200 }}>
           <TeamDashboardScreen
             teamId={dashboardTeamId}
             onBack={() => { setShowTeamDashboard(false); setDashboardTeamId(null); }}
@@ -586,7 +660,7 @@ export default function App() {
 
       {/* VEREINSVERWALTUNG – RECHNUNGSCODE (Gründungs-Coach ohne Code) */}
       {showInvoiceCode && (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#FFFFFF', zIndex: 200 }}>
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background, zIndex: 200 }}>
           <InvoiceCodeScreen
             onBack={() => setShowInvoiceCode(false)}
             onSuccess={(inviteCodeId) => {
@@ -600,7 +674,7 @@ export default function App() {
 
       {/* VEREINSVERWALTUNG – COACH ONBOARDING (Code eingelöst, Team anlegen) */}
       {showTeamCreation && pendingInviteCodeId && (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#FFFFFF', zIndex: 200 }}>
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background, zIndex: 200 }}>
           <CoachOnboardingWizard
             inviteCodeId={pendingInviteCodeId}
             onBack={() => setShowTeamCreation(false)}
@@ -634,11 +708,12 @@ export default function App() {
                 { label: 'Live-Ticker starten', icon: <PlusCircle size={20} color="#C01830" />, action: openTickerFlow },
                 userRole === 'coach' ? { label: 'Vereinsverwaltung', icon: <Trophy size={20} color={colors.text} />, action: handleVerwaltung } : null,
                 { label: 'Einstellungen', icon: <LayoutGrid size={20} color={colors.text} />, action: () => setShowSettings(true) },
-                { label: 'Feedback geben', icon: <MessageSquare size={20} color={colors.text} /> },
+                { label: 'Feedback geben', icon: <MessageSquare size={20} color={colors.text} />, action: () => setShowFeedback(true) },
                 { label: 'Problem melden', icon: <Bell size={20} color={colors.text} />, action: () => setShowReportProblem(true) },
                 { label: 'Über Fieldnet', icon: <Trophy size={20} color={colors.text} /> },
-                { label: 'Datenschutz', icon: <Users size={20} color={colors.text} /> },
-                { label: 'Impressum', icon: <Users size={20} color={colors.text} /> },
+                { label: 'Datenschutz', icon: <Users size={20} color={colors.text} />, action: () => setShowDatenschutz(true) },
+                { label: 'Impressum', icon: <Users size={20} color={colors.text} />, action: () => setShowImpressum(true) },
+                { label: 'Kontoinformationen', icon: <User size={20} color={colors.text} />, action: () => setShowAccountInfo(true) },
               ].filter(Boolean).map((item, index) => (
                 <TouchableOpacity 
                   key={index} 

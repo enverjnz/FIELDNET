@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  View, Text, TextInput, TouchableOpacity,
   SafeAreaView, StatusBar, ScrollView, ActivityIndicator,
   Alert, Image, Modal, RefreshControl,
 } from 'react-native';
@@ -33,22 +33,21 @@ import PostCard from '../components/PostCard';
 import PostCreateScreen from './PostCreateScreen';
 import FullscreenImageModal from '../components/FullscreenImageModal';
 import TimelineScreen from './TimelineScreen';
+import { useTheme } from '../context/ThemeContext';
+import { createTeamProfileStyles } from '../theme/teamProfileStyles';
 
-const B      = '#1A2F6E';
-const R      = '#C01830';
-const BG     = '#F0F4FF';
-const BORDER = '#D1D8F0';
-const MUTED  = '#6B7280';
-const GREEN  = '#10B981';
+const GREEN = '#10B981';
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
 
-const STATUS_LABELS = {
-  pending:       { label: 'Ausstehend',  color: '#F59E0B' },
-  approved:      { label: 'Aktiv',       color: GREEN     },
-  coach_pending: { label: 'Trainer',     color: B         },
-  declined:      { label: 'Abgelehnt',   color: '#EF4444' },
-};
+function getStatusLabels(colors) {
+  return {
+    pending:       { label: 'Ausstehend',  color: '#F59E0B' },
+    approved:      { label: 'Aktiv',       color: GREEN     },
+    coach_pending: { label: 'Trainer',     color: colors.text },
+    declined:      { label: 'Abgelehnt',   color: '#EF4444' },
+  };
+}
 
 const GAME_STATUS = {
   scheduled: { label: 'GEPLANT',  short: '–' },
@@ -61,7 +60,7 @@ const GAME_STATUS = {
   CANCELLED: { label: 'ABGESAGT', short: '–' },
 };
 
-function InfoRow({ icon, label, value }) {
+function InfoRow({ icon, label, value, styles }) {
   if (!value) return null;
   return (
     <View style={styles.infoRow}>
@@ -74,7 +73,7 @@ function InfoRow({ icon, label, value }) {
   );
 }
 
-function TeamLogoSmall({ uri, label }) {
+function TeamLogoSmall({ uri, label, styles }) {
   if (uri) {
     return <Image source={{ uri }} style={styles.scoreTeamLogo} resizeMode="contain" />;
   }
@@ -85,7 +84,7 @@ function TeamLogoSmall({ uri, label }) {
   );
 }
 
-function GameScoreCard({ game, team, onPress }) {
+function GameScoreCard({ game, team, onPress, styles, colors }) {
   const homeName = game.is_home_game
     ? (team?.short_name ?? team?.name ?? 'Heim')
     : (game.away_team_name ?? 'Gast');
@@ -117,6 +116,7 @@ function GameScoreCard({ game, team, onPress }) {
           <TeamLogoSmall
             uri={game.is_home_game ? team?.avatar_teamlogo : null}
             label={homeName}
+            styles={styles}
           />
           <Text style={[styles.scoreTeamName, homeWins && styles.scoreWinnerName]} numberOfLines={1}>
             {homeName}
@@ -134,6 +134,7 @@ function GameScoreCard({ game, team, onPress }) {
           <TeamLogoSmall
             uri={!game.is_home_game ? team?.avatar_teamlogo : null}
             label={awayName}
+            styles={styles}
           />
           <Text style={[styles.scoreTeamName, awayWins && styles.scoreWinnerName]} numberOfLines={1}>
             {awayName}
@@ -155,7 +156,7 @@ function GameScoreCard({ game, team, onPress }) {
 
       {game.location ? (
         <View style={styles.scoreLocationRow}>
-          <MapPin size={11} color={MUTED} />
+          <MapPin size={11} color={colors.textMuted} />
           <Text style={styles.scoreLocationText} numberOfLines={1}>{game.location}</Text>
         </View>
       ) : null}
@@ -173,7 +174,7 @@ function GameScoreCard({ game, team, onPress }) {
   return card;
 }
 
-function EditField({ label, value, onChangeText, placeholder, keyboardType = 'default', multiline = false }) {
+function EditField({ label, value, onChangeText, placeholder, keyboardType = 'default', multiline = false, styles, colors }) {
   return (
     <View style={styles.fieldWrap}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -182,7 +183,7 @@ function EditField({ label, value, onChangeText, placeholder, keyboardType = 'de
         value={value ?? ''}
         onChangeText={onChangeText}
         placeholder={placeholder ?? ''}
-        placeholderTextColor="#9CA3AF"
+        placeholderTextColor={colors.textMuted}
         keyboardType={keyboardType}
         multiline={multiline}
         numberOfLines={multiline ? 3 : 1}
@@ -200,6 +201,8 @@ function LeagueSelect({
   error,
   disabled = false,
   placeholder = 'Liga auswählen…',
+  styles,
+  colors,
 }) {
   const [open, setOpen] = useState(false);
   const selected = options.find((o) => o.value === value);
@@ -214,13 +217,13 @@ function LeagueSelect({
         disabled={loading || disabled}
       >
         {loading ? (
-          <ActivityIndicator size="small" color={B} style={{ flex: 1 }} />
+          <ActivityIndicator size="small" color={colors.text} style={{ flex: 1 }} />
         ) : (
           <Text style={[styles.leagueTriggerText, !selected && styles.leaguePlaceholder]} numberOfLines={1}>
             {selected?.label ?? placeholder}
           </Text>
         )}
-        <ChevronDown size={18} color={MUTED} />
+        <ChevronDown size={18} color={colors.textMuted} />
       </TouchableOpacity>
       {!!error && <Text style={styles.leagueError}>{error}</Text>}
 
@@ -231,7 +234,7 @@ function LeagueSelect({
             <View style={styles.leagueSheetHeader}>
               <Text style={styles.leagueSheetTitle}>{label}</Text>
               <TouchableOpacity onPress={() => setOpen(false)} hitSlop={8}>
-                <X size={22} color={B} />
+                <X size={22} color={colors.text} />
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.leagueList} keyboardShouldPersistTaps="handled">
@@ -250,7 +253,7 @@ function LeagueSelect({
                       <Text style={[styles.leagueItemText, active && styles.leagueItemTextActive]}>
                         {option.label}
                       </Text>
-                      {active && <Check size={18} color={R} />}
+                      {active && <Check size={18} color={colors.accent} />}
                     </TouchableOpacity>
                   );
                 })
@@ -265,7 +268,11 @@ function LeagueSelect({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function TeamProfileScreen({ teamId, onBack, readOnly = false, onRequestJoin }) {
+export default function TeamProfileScreen({ teamId, onBack, readOnly = false, onRequestJoin, onFollowChange, onMembershipChange }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createTeamProfileStyles(colors), [colors]);
+  const statusLabels = useMemo(() => getStatusLabels(colors), [colors]);
+
   const [team, setTeam]       = useState(null);
   const [kader, setKader]     = useState([]);
   const [games, setGames]     = useState([]);
@@ -300,6 +307,7 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
   const [followMessage, setFollowMessage] = useState(null);
   const [posts, setPosts] = useState([]);
   const [postsLoading, setPostsLoading] = useState(false);
+  const [leavingTeam, setLeavingTeam] = useState(false);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -479,6 +487,7 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
         const teamLabel = team?.short_name ?? team?.name ?? 'dem Team';
         setFollowMessage(`Du folgst jetzt ${teamLabel}.`);
       }
+      onFollowChange?.();
     } catch (err) {
       Alert.alert('Fehler', err?.message ?? 'Aktion konnte nicht ausgeführt werden.');
     } finally {
@@ -677,6 +686,60 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
     );
   };
 
+  const myMembership = useMemo(() => {
+    if (!currentUserId) return null;
+    return kader.find((m) => m.player_id === currentUserId) ?? null;
+  }, [kader, currentUserId]);
+
+  const isTeamMember = Boolean(
+    myMembership && (myMembership.status === 'approved' || myMembership.status === 'pending' || myMembership.status === 'coach_pending'),
+  );
+
+  const leaveTeam = () => {
+    if (!myMembership || !team || leavingTeam) return;
+    const teamName = team.name ?? 'dieses Team';
+    Alert.alert(
+      'Team verlassen',
+      myMembership.status === 'approved'
+        ? `Möchtest du ${teamName} wirklich verlassen?`
+        : `Möchtest du deine Anfrage bei ${teamName} wirklich zurückziehen?`,
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: myMembership.status === 'approved' ? 'Verlassen' : 'Zurückziehen',
+          style: 'destructive',
+          onPress: async () => {
+            setLeavingTeam(true);
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) throw new Error('Nicht eingeloggt.');
+
+              const { error } = await supabase
+                .from('team_memberships')
+                .delete()
+                .eq('id', myMembership.id)
+                .eq('player_id', user.id);
+
+              if (error) throw error;
+              Alert.alert(
+                'Erledigt',
+                myMembership.status === 'approved'
+                  ? `Du hast ${teamName} verlassen.`
+                  : `Deine Anfrage bei ${teamName} wurde zurückgezogen.`,
+              );
+              await loadData();
+              onMembershipChange?.();
+            } catch (err) {
+              Alert.alert('Fehler', err?.message ?? 'Aktion fehlgeschlagen.');
+            } finally {
+              setLeavingTeam(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const acceptMember = async (member) => {
     try {
       await acceptMembershipRequest(member.id, teamId, member.player_id, member.status);
@@ -740,24 +803,24 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
   if (loading) {
     return (
       <SafeAreaView style={styles.safe}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
         <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-          <ArrowLeft size={20} color={B} />
+          <ArrowLeft size={20} color={colors.text} />
           <Text style={styles.backBtnText}>Zurück</Text>
         </TouchableOpacity>
-        <ActivityIndicator color={B} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={colors.text} style={{ marginTop: 60 }} />
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
 
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={isEditing ? cancelEditing : onBack} activeOpacity={0.75}>
-          <ArrowLeft size={20} color={B} />
+          <ArrowLeft size={20} color={colors.text} />
           <Text style={styles.backBtnText}>{isEditing ? 'Abbrechen' : 'Zurück'}</Text>
         </TouchableOpacity>
 
@@ -773,7 +836,7 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
           </TouchableOpacity>
         ) : !readOnly ? (
           <TouchableOpacity style={styles.editBtn} onPress={startEditing} activeOpacity={0.85}>
-            <Edit2 size={16} color={B} />
+            <Edit2 size={16} color={colors.text} />
             <Text style={styles.editBtnText}>Bearbeiten</Text>
           </TouchableOpacity>
         ) : (
@@ -785,7 +848,7 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        refreshControl={!isEditing ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={B} colors={[B]} /> : undefined}
+        refreshControl={!isEditing ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} colors={[colors.text]} /> : undefined}
       >
         {!!(leagueSuccess || followMessage) && (
           <View style={styles.successToast}>
@@ -847,11 +910,11 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
             activeOpacity={0.85}
           >
             {followBusy ? (
-              <ActivityIndicator size="small" color={isFollowing ? B : '#FFFFFF'} />
+              <ActivityIndicator size="small" color={isFollowing ? colors.text : '#FFFFFF'} />
             ) : (
               <>
                 {isFollowing
-                  ? <UserMinus size={18} color={B} />
+                  ? <UserMinus size={18} color={colors.text} />
                   : <UserPlus size={18} color="#FFFFFF" />
                 }
                 <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextOutline]}>
@@ -867,17 +930,17 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
         <View style={styles.card}>
           {isEditing ? (
             <>
-              <EditField label="TEAMNAME *" value={draft.name} onChangeText={(v) => setDraft(p => ({ ...p, name: v }))} placeholder="z. B. Nürnberg Rams" />
-              <EditField label="KURZNAME" value={draft.short_name} onChangeText={(v) => setDraft(p => ({ ...p, short_name: v }))} placeholder="z. B. RAMS" />
-              <EditField label="STADT" value={draft.town} onChangeText={(v) => setDraft(p => ({ ...p, town: v }))} placeholder="z. B. Nürnberg" />
-              <EditField label="GRÜNDUNGSJAHR" value={draft.founding_year} onChangeText={(v) => setDraft(p => ({ ...p, founding_year: v }))} placeholder="z. B. 2005" keyboardType="numeric" />
+              <EditField label="TEAMNAME *" value={draft.name} onChangeText={(v) => setDraft(p => ({ ...p, name: v }))} placeholder="z. B. Nürnberg Rams" styles={styles} colors={colors} />
+              <EditField label="KURZNAME" value={draft.short_name} onChangeText={(v) => setDraft(p => ({ ...p, short_name: v }))} placeholder="z. B. RAMS" styles={styles} colors={colors} />
+              <EditField label="STADT" value={draft.town} onChangeText={(v) => setDraft(p => ({ ...p, town: v }))} placeholder="z. B. Nürnberg" styles={styles} colors={colors} />
+              <EditField label="GRÜNDUNGSJAHR" value={draft.founding_year} onChangeText={(v) => setDraft(p => ({ ...p, founding_year: v }))} placeholder="z. B. 2005" keyboardType="numeric" styles={styles} colors={colors} />
             </>
           ) : (
             <>
-              <InfoRow icon={<Trophy size={16} color={B} />} label="Teamname" value={team?.name} />
-              <InfoRow icon={<Trophy size={16} color={B} />} label="Kurzname" value={team?.short_name} />
-              <InfoRow icon={<MapPin size={16} color={B} />} label="Stadt" value={team?.town} />
-              <InfoRow icon={<Clock size={16} color={B} />} label="Gründungsjahr" value={team?.founding_year ? String(team.founding_year) : null} />
+              <InfoRow icon={<Trophy size={16} color={colors.text} />} label="Teamname" value={team?.name} styles={styles} />
+              <InfoRow icon={<Trophy size={16} color={colors.text} />} label="Kurzname" value={team?.short_name} styles={styles} />
+              <InfoRow icon={<MapPin size={16} color={colors.text} />} label="Stadt" value={team?.town} styles={styles} />
+              <InfoRow icon={<Clock size={16} color={colors.text} />} label="Gründungsjahr" value={team?.founding_year ? String(team.founding_year) : null} styles={styles} />
             </>
           )}
         </View>
@@ -908,6 +971,8 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
                 }))}
                 loading={regionsLoading}
                 placeholder="Landesverband wählen…"
+                styles={styles}
+                colors={colors}
               />
 
               <LeagueSelect
@@ -919,6 +984,8 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
                 error={leaguesError}
                 disabled={!leagueDraft.regionId}
                 placeholder={leagueDraft.regionId ? 'Liga wählen…' : 'Zuerst Region wählen'}
+                styles={styles}
+                colors={colors}
               />
 
               <View style={styles.enrollModeWrap}>
@@ -972,11 +1039,11 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
             </>
           ) : (
             <>
-              <InfoRow icon={<MapPin size={16} color={B} />} label="Landesverband" value={leagueAssignment?.regionLabel || '–'} />
-              <InfoRow icon={<Trophy size={16} color={B} />} label="Liga" value={leagueAssignment?.leagueName || '–'} />
-              <InfoRow icon={<Calendar size={16} color={B} />} label="Saison" value={leagueAssignment?.seasonLabel || '–'} />
+              <InfoRow icon={<MapPin size={16} color={colors.text} />} label="Landesverband" value={leagueAssignment?.regionLabel || '–'} styles={styles} />
+              <InfoRow icon={<Trophy size={16} color={colors.text} />} label="Liga" value={leagueAssignment?.leagueName || '–'} styles={styles} />
+              <InfoRow icon={<Calendar size={16} color={colors.text} />} label="Saison" value={leagueAssignment?.seasonLabel || '–'} styles={styles} />
               {leagueAssignment?.division ? (
-                <InfoRow icon={<Users size={16} color={B} />} label="Sparte" value={leagueAssignment.division} />
+                <InfoRow icon={<Users size={16} color={colors.text} />} label="Sparte" value={leagueAssignment.division} styles={styles} />
               ) : null}
             </>
           )}
@@ -990,10 +1057,10 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
               <Text style={styles.kaderCount}>{posts.length} News</Text>
             </View>
             {postsLoading ? (
-              <ActivityIndicator color={B} style={{ marginVertical: 20 }} />
+              <ActivityIndicator color={colors.text} style={{ marginVertical: 20 }} />
             ) : posts.length === 0 ? (
               <View style={styles.emptyGames}>
-                <Newspaper size={28} color={MUTED} />
+                <Newspaper size={28} color={colors.textMuted} />
                 <Text style={styles.emptyGamesText}>Noch keine Beiträge veröffentlicht</Text>
               </View>
             ) : (
@@ -1016,13 +1083,13 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
         <View style={styles.card}>
           {isEditing ? (
             <>
-              <EditField label="TRAININGSORT" value={draft.training_location} onChangeText={(v) => setDraft(p => ({ ...p, training_location: v }))} placeholder="z. B. Sportpark Nord" />
-              <EditField label="TRAININGSZEITEN" value={draft.training_times} onChangeText={(v) => setDraft(p => ({ ...p, training_times: v }))} placeholder="z. B. Di & Do 19:00 Uhr" multiline />
+              <EditField label="TRAININGSORT" value={draft.training_location} onChangeText={(v) => setDraft(p => ({ ...p, training_location: v }))} placeholder="z. B. Sportpark Nord" styles={styles} colors={colors} />
+              <EditField label="TRAININGSZEITEN" value={draft.training_times} onChangeText={(v) => setDraft(p => ({ ...p, training_times: v }))} placeholder="z. B. Di & Do 19:00 Uhr" multiline styles={styles} colors={colors} />
             </>
           ) : (
             <>
-              <InfoRow icon={<MapPin size={16} color={B} />} label="Trainingsort" value={team?.training_location} />
-              <InfoRow icon={<Clock size={16} color={B} />} label="Trainingszeiten" value={team?.training_times} />
+              <InfoRow icon={<MapPin size={16} color={colors.text} />} label="Trainingsort" value={team?.training_location} styles={styles} />
+              <InfoRow icon={<Clock size={16} color={colors.text} />} label="Trainingszeiten" value={team?.training_times} styles={styles} />
             </>
           )}
         </View>
@@ -1032,17 +1099,17 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
         <View style={styles.card}>
           {isEditing ? (
             <>
-              <EditField label="TELEFON" value={draft.tel} onChangeText={(v) => setDraft(p => ({ ...p, tel: v }))} placeholder="+49 123 456789" keyboardType="phone-pad" />
-              <EditField label="E-MAIL" value={draft.email} onChangeText={(v) => setDraft(p => ({ ...p, email: v }))} placeholder="info@meinteam.de" keyboardType="email-address" />
-              <EditField label="WEBSEITE" value={draft.website} onChangeText={(v) => setDraft(p => ({ ...p, website: v }))} placeholder="https://meinteam.de" autoCapitalize="none" />
-              <EditField label="INSTAGRAM" value={draft.instagram} onChangeText={(v) => setDraft(p => ({ ...p, instagram: v }))} placeholder="@meinteam" autoCapitalize="none" />
+              <EditField label="TELEFON" value={draft.tel} onChangeText={(v) => setDraft(p => ({ ...p, tel: v }))} placeholder="+49 123 456789" keyboardType="phone-pad" styles={styles} colors={colors} />
+              <EditField label="E-MAIL" value={draft.email} onChangeText={(v) => setDraft(p => ({ ...p, email: v }))} placeholder="info@meinteam.de" keyboardType="email-address" styles={styles} colors={colors} />
+              <EditField label="WEBSEITE" value={draft.website} onChangeText={(v) => setDraft(p => ({ ...p, website: v }))} placeholder="https://meinteam.de" autoCapitalize="none" styles={styles} colors={colors} />
+              <EditField label="INSTAGRAM" value={draft.instagram} onChangeText={(v) => setDraft(p => ({ ...p, instagram: v }))} placeholder="@meinteam" autoCapitalize="none" styles={styles} colors={colors} />
             </>
           ) : (
             <>
-              <InfoRow icon={<Phone size={16} color={B} />} label="Telefon" value={team?.tel} />
-              <InfoRow icon={<Mail size={16} color={B} />} label="E-Mail" value={team?.email} />
-              <InfoRow icon={<Globe size={16} color={B} />} label="Webseite" value={team?.website} />
-              <InfoRow icon={<AtSign size={16} color={B} />} label="Instagram" value={team?.instagram} />
+              <InfoRow icon={<Phone size={16} color={colors.text} />} label="Telefon" value={team?.tel} styles={styles} />
+              <InfoRow icon={<Mail size={16} color={colors.text} />} label="E-Mail" value={team?.email} styles={styles} />
+              <InfoRow icon={<Globe size={16} color={colors.text} />} label="Webseite" value={team?.website} styles={styles} />
+              <InfoRow icon={<AtSign size={16} color={colors.text} />} label="Instagram" value={team?.instagram} styles={styles} />
             </>
           )}
         </View>
@@ -1061,7 +1128,7 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
                 <Text style={styles.statTileLabel}>Siege</Text>
               </View>
               <View style={styles.statTile}>
-                <Text style={[styles.statTileValue, { color: R }]}>{teamStats.losses ?? 0}</Text>
+                <Text style={[styles.statTileValue, { color: colors.accent }]}>{teamStats.losses ?? 0}</Text>
                 <Text style={styles.statTileLabel}>Niederlagen</Text>
               </View>
               <View style={styles.statTile}>
@@ -1078,7 +1145,7 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
             <Text style={[styles.sectionTitle, { marginTop: 6 }]}>SPIELE</Text>
             {games.length === 0 ? (
               <View style={styles.emptyGames}>
-                <Calendar size={28} color={MUTED} />
+                <Calendar size={28} color={colors.textMuted} />
                 <Text style={styles.emptyGamesText}>Noch keine Spiele erstellt</Text>
               </View>
             ) : (
@@ -1094,6 +1161,8 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
                     game={game}
                     team={team}
                     onPress={(g) => setTimelineGameId(g.id)}
+                    styles={styles}
+                    colors={colors}
                   />
                 ))}
                 <View style={{ width: 6 }} />
@@ -1114,7 +1183,7 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
             : kader.filter((m) => m.status !== 'declined');
           return visibleKader.length === 0 ? (
           <View style={styles.emptyKader}>
-            <Users size={28} color={MUTED} />
+            <Users size={28} color={colors.textMuted} />
             <Text style={styles.emptyKaderText}>Noch keine Spieler im Kader</Text>
           </View>
         ) : (
@@ -1122,7 +1191,7 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
             const p      = member.profiles;
             const name   = p ? [p.first_name, p.last_name].filter(Boolean).join(' ') : 'Unbekannt';
             const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-            const status = STATUS_LABELS[member.status] ?? { label: member.status, color: MUTED };
+            const status = statusLabels[member.status] ?? { label: member.status, color: colors.textMuted };
             return (
               <View key={member.id} style={styles.playerRow}>
                 {p?.avatar ? (
@@ -1171,7 +1240,7 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
                       onPress={() => rejectMember(member)}
                       hitSlop={6}
                     >
-                      <X size={16} color={R} />
+                      <X size={16} color={colors.accent} />
                     </TouchableOpacity>
                   </>
                 )}
@@ -1181,7 +1250,7 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
                     onPress={() => removePlayer(member.id, name)}
                     hitSlop={6}
                   >
-                    <Trash2 size={16} color={R} />
+                    <Trash2 size={16} color={colors.accent} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -1190,7 +1259,22 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
         );
         })()}
 
-        {readOnly && onRequestJoin && team && (
+        {readOnly && team && isTeamMember && (
+          <TouchableOpacity
+            style={styles.leaveTeamBtn}
+            onPress={leaveTeam}
+            disabled={leavingTeam}
+            activeOpacity={0.75}
+          >
+            {leavingTeam ? (
+              <ActivityIndicator size="small" color={colors.textMuted} />
+            ) : (
+              <Text style={styles.leaveTeamBtnText}>− Team verlassen</Text>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {readOnly && onRequestJoin && team && !isTeamMember && (
           <TouchableOpacity
             style={styles.joinBtn}
             onPress={() => onRequestJoin(team)}
@@ -1212,11 +1296,11 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
         onRequestClose={() => setSelectedPlayer(null)}
       >
         {selectedPlayer && (
-          <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+          <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Spielerprofil</Text>
               <TouchableOpacity onPress={() => setSelectedPlayer(null)} hitSlop={8}>
-                <X size={22} color={B} />
+                <X size={22} color={colors.text} />
               </TouchableOpacity>
             </View>
 
@@ -1267,8 +1351,8 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
                 )}
                 <View style={styles.modalStatCard}>
                   <Text style={styles.modalStatLabel}>STATUS</Text>
-                  <Text style={[styles.modalStatValue, { color: STATUS_LABELS[selectedPlayer.status]?.color ?? MUTED }]}>
-                    {STATUS_LABELS[selectedPlayer.status]?.label ?? selectedPlayer.status}
+                  <Text style={[styles.modalStatValue, { color: statusLabels[selectedPlayer.status]?.color ?? colors.textMuted }]}>
+                    {statusLabels[selectedPlayer.status]?.label ?? selectedPlayer.status}
                   </Text>
                 </View>
               </View>
@@ -1284,323 +1368,3 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
     </SafeAreaView>
   );
 }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  safe:   { flex: 1, backgroundColor: '#FFFFFF' },
-  scroll: { paddingHorizontal: 20, paddingBottom: 20 },
-
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', paddingRight: 16,
-  },
-  backBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 20, paddingVertical: 14,
-  },
-  backBtnText: { color: B, fontSize: 14, fontWeight: '700' },
-
-  editBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: BG, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 9,
-    borderWidth: 1.5, borderColor: BORDER,
-  },
-  editBtnText: { color: B, fontSize: 13, fontWeight: '700' },
-
-  saveBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: B, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 9,
-  },
-  saveBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
-
-  logoSection:       { alignItems: 'center', paddingVertical: 20 },
-  logoPicker:        { marginBottom: 8 },
-  logoPickerHint:    { color: '#FFFFFF', fontSize: 10, fontWeight: '600', marginTop: 6 },
-  removeLogoBtn:     { marginBottom: 8 },
-  removeLogoText:    { color: R, fontSize: 12, fontWeight: '600' },
-  teamLogo:          { width: 120, height: 120, borderRadius: 24, marginBottom: 8, backgroundColor: BG },
-  teamLogoPlaceholder: {
-    width: 120, height: 120, borderRadius: 24, marginBottom: 8,
-    backgroundColor: B, justifyContent: 'center', alignItems: 'center',
-  },
-
-  sectionTitle: {
-    color: MUTED, fontSize: 10, fontWeight: '800',
-    letterSpacing: 1.2, marginBottom: 10, marginTop: 6,
-  },
-  card: {
-    backgroundColor: BG, borderRadius: 16,
-    borderWidth: 1, borderColor: BORDER,
-    padding: 16, marginBottom: 18,
-  },
-
-  infoRow: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    paddingVertical: 8, gap: 12,
-    borderBottomWidth: 1, borderBottomColor: BORDER,
-  },
-  infoIcon: { width: 28, alignItems: 'center', paddingTop: 2 },
-  infoLabel: { color: MUTED, fontSize: 10, fontWeight: '700', letterSpacing: 0.5, marginBottom: 2 },
-  infoValue: { color: B, fontSize: 14, fontWeight: '600' },
-
-  fieldWrap:  { marginBottom: 12 },
-  fieldLabel: { color: B, fontSize: 10, fontWeight: '800', letterSpacing: 0.8, marginBottom: 6 },
-  fieldInput: {
-    backgroundColor: '#FFFFFF', borderRadius: 10,
-    borderWidth: 1.5, borderColor: BORDER,
-    paddingHorizontal: 12, paddingVertical: 11,
-    color: B, fontSize: 14,
-  },
-  fieldInputMulti: { height: 72, textAlignVertical: 'top' },
-
-  leagueTrigger: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF', borderRadius: 10,
-    borderWidth: 1.5, borderColor: BORDER,
-    paddingHorizontal: 12, paddingVertical: 11, minHeight: 44,
-  },
-  leagueTriggerError: { borderColor: R },
-  leagueTriggerDisabled: { opacity: 0.55 },
-  leagueTriggerText: { flex: 1, color: B, fontSize: 14, fontWeight: '600', marginRight: 8 },
-  leaguePlaceholder: { color: '#9CA3AF', fontWeight: '400' },
-  leagueError: { color: R, fontSize: 11, marginTop: 4 },
-  leagueOverlay: { flex: 1, justifyContent: 'flex-end' },
-  leagueBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(26,47,110,0.4)' },
-  leagueSheet: {
-    backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    maxHeight: '60%', paddingBottom: 24,
-  },
-  leagueSheetHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 16,
-    borderBottomWidth: 1, borderBottomColor: BORDER,
-  },
-  leagueSheetTitle: { color: B, fontSize: 16, fontWeight: '800' },
-  leagueList: { maxHeight: 320 },
-  leagueItem: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 16,
-    borderBottomWidth: 1, borderBottomColor: BORDER,
-  },
-  leagueItemActive: { backgroundColor: BG },
-  leagueItemText: { color: B, fontSize: 15, fontWeight: '500', flex: 1 },
-  leagueItemTextActive: { fontWeight: '800' },
-  leagueEmpty: { color: MUTED, fontSize: 14, textAlign: 'center', padding: 24 },
-
-  leagueSectionHint: {
-    color: MUTED, fontSize: 12, fontWeight: '600',
-    marginBottom: 12, lineHeight: 18,
-  },
-  enrollModeWrap: { marginTop: 4, marginBottom: 12, gap: 8 },
-  enrollModeOption: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
-    backgroundColor: '#FFFFFF', borderRadius: 12,
-    borderWidth: 1.5, borderColor: BORDER,
-    padding: 12,
-  },
-  enrollModeOptionActive: { borderColor: B, backgroundColor: '#FFFFFF' },
-  enrollModeOptionDisabled: { opacity: 0.5 },
-  enrollRadio: {
-    width: 18, height: 18, borderRadius: 9,
-    borderWidth: 2, borderColor: BORDER, marginTop: 2,
-  },
-  enrollRadioActive: { borderColor: R, backgroundColor: R },
-  enrollModeTitle: { color: B, fontSize: 13, fontWeight: '800', marginBottom: 2 },
-  enrollModeSub: { color: MUTED, fontSize: 11, lineHeight: 16 },
-  leagueSaveBtn: {
-    backgroundColor: R, borderRadius: 12,
-    paddingVertical: 14, alignItems: 'center', justifyContent: 'center',
-    minHeight: 48,
-  },
-  leagueSaveBtnDisabled: { opacity: 0.7 },
-  leagueSaveBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-
-  successToast: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: GREEN, borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 12,
-    marginBottom: 12,
-  },
-  successToastText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700', flex: 1 },
-
-  kaderHeader: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 10, marginTop: 6,
-  },
-  kaderCount: { color: MUTED, fontSize: 12, fontWeight: '600' },
-
-  emptyKader: {
-    alignItems: 'center', paddingVertical: 32, gap: 10,
-    backgroundColor: BG, borderRadius: 16,
-    borderWidth: 1, borderColor: BORDER,
-  },
-  emptyKaderText: { color: MUTED, fontSize: 13 },
-
-  playerRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: BG, borderRadius: 14,
-    padding: 12, marginBottom: 8,
-    borderWidth: 1, borderColor: BORDER,
-  },
-  playerAvatar: {
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: B, justifyContent: 'center', alignItems: 'center',
-  },
-  playerAvatarImg: { width: 56, height: 56, borderRadius: 28 },
-  playerAvatarText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
-  playerInfo:  { flex: 1 },
-  playerName:  { color: B, fontSize: 14, fontWeight: '700' },
-  playerMeta:  { color: MUTED, fontSize: 11, marginTop: 2 },
-  statusBadge: {
-    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
-    borderWidth: 1.5,
-  },
-  statusText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.3 },
-  acceptBtn: {
-    width: 30, height: 30, borderRadius: 10,
-    backgroundColor: '#D1FAE5', justifyContent: 'center', alignItems: 'center',
-  },
-  rejectBtn: {
-    width: 30, height: 30, borderRadius: 10,
-    backgroundColor: '#FFF0F2', justifyContent: 'center', alignItems: 'center',
-  },
-  removeBtn: {
-    width: 30, height: 30, borderRadius: 10,
-    backgroundColor: '#FFF0F2', justifyContent: 'center', alignItems: 'center',
-  },
-
-  // Player profile modal
-  modalHeader: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', paddingHorizontal: 20, paddingVertical: 18,
-    borderBottomWidth: 1, borderBottomColor: BORDER,
-  },
-  modalTitle: { color: B, fontSize: 18, fontWeight: '900' },
-  modalScroll: { paddingHorizontal: 20, paddingBottom: 40 },
-
-  modalAvatarWrap: { alignItems: 'center', paddingVertical: 28 },
-  modalAvatarImg: {
-    width: 128, height: 128, borderRadius: 64,
-    borderWidth: 3, borderColor: B, marginBottom: 12,
-  },
-  modalAvatarPlaceholder: {
-    width: 128, height: 128, borderRadius: 64,
-    backgroundColor: B, justifyContent: 'center', alignItems: 'center',
-    marginBottom: 12,
-  },
-  modalAvatarInitials: { color: '#FFFFFF', fontSize: 42, fontWeight: '900' },
-  modalName: { color: B, fontSize: 22, fontWeight: '900', marginBottom: 8 },
-  modalPosPill: {
-    backgroundColor: BG, borderRadius: 20,
-    paddingHorizontal: 14, paddingVertical: 5,
-    borderWidth: 1.5, borderColor: BORDER,
-  },
-  modalPosPillText: { color: B, fontSize: 12, fontWeight: '800' },
-
-  modalStatsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  modalStatCard: {
-    width: '47%', backgroundColor: BG,
-    borderRadius: 14, borderWidth: 1, borderColor: BORDER,
-    padding: 14,
-  },
-  modalStatLabel: { color: MUTED, fontSize: 10, fontWeight: '700', letterSpacing: 0.8, marginBottom: 6 },
-  modalStatValue: { color: B, fontSize: 18, fontWeight: '900' },
-
-  joinBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: R, borderRadius: 14, paddingVertical: 16, marginTop: 8,
-  },
-  joinBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
-
-  followBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: B, borderRadius: 14, paddingVertical: 14,
-    marginBottom: 18, minHeight: 50,
-  },
-  followBtnOutline: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2, borderColor: B,
-  },
-  followBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
-  followBtnTextOutline: { color: B },
-
-  emptyGames: {
-    alignItems: 'center', paddingVertical: 28, gap: 10,
-    backgroundColor: BG, borderRadius: 16,
-    borderWidth: 1, borderColor: BORDER, marginBottom: 18,
-  },
-  emptyGamesText: { color: MUTED, fontSize: 13 },
-
-  gamesCarousel: { marginHorizontal: -20, marginBottom: 18 },
-  gamesCarouselContent: { paddingHorizontal: 20 },
-
-  scoreCard: {
-    backgroundColor: '#FFFFFF',
-    borderColor: BORDER,
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
-    width: 240,
-    marginRight: 14,
-    shadowColor: B,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 5,
-    elevation: 3,
-  },
-  scoreLeague: {
-    color: MUTED, fontSize: 10, fontWeight: '800',
-    letterSpacing: 0.8, marginBottom: 12,
-  },
-  scoreRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 6,
-  },
-  scoreTeamContainer: {
-    flexDirection: 'row', alignItems: 'center',
-    flex: 1, marginRight: 8,
-  },
-  scoreTeamLogo: {
-    width: 24, height: 24, borderRadius: 12,
-    marginRight: 10, backgroundColor: BG,
-  },
-  scoreTeamLogoPlaceholder: {
-    width: 24, height: 24, borderRadius: 12,
-    marginRight: 10, backgroundColor: B,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  scoreTeamLogoText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
-  scoreTeamName: { color: MUTED, fontSize: 14, fontWeight: '600', flex: 1 },
-  scoreTeamScore: { color: MUTED, fontSize: 15, fontWeight: '600' },
-  scoreWinnerName: { color: B, fontWeight: '800' },
-  scoreWinnerScore: { color: R, fontWeight: '800', fontSize: 16 },
-  scoreCardFooter: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginTop: 10, paddingTop: 8,
-    borderTopWidth: 1, borderTopColor: BORDER,
-  },
-  scoreStatusTag: { color: MUTED, fontSize: 9, fontWeight: '700' },
-  scoreTimelineLink: { color: R, fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 18,
-  },
-  statTile: {
-    width: '47%',
-    backgroundColor: BG,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: BORDER,
-    padding: 14,
-    alignItems: 'center',
-  },
-  statTileValue: { color: B, fontSize: 22, fontWeight: '900' },
-  statTileLabel: { color: MUTED, fontSize: 11, fontWeight: '700', marginTop: 4 },
-  scoreLocationRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8,
-  },
-  scoreLocationText: { color: MUTED, fontSize: 11, flex: 1 },
-});

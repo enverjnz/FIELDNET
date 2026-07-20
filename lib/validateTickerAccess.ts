@@ -1,6 +1,11 @@
 import { supabase } from './supabase';
 
-type HomeTeam = { id: string; name: string; short_name: string | null };
+type HomeTeam = {
+  id: string;
+  name: string;
+  short_name: string | null;
+  avatar_teamlogo: string | null;
+};
 
 type GameRow = {
   id: number;
@@ -32,7 +37,7 @@ export type TickerGame = {
 };
 
 const GAME_SELECT =
-  'id, home_team_id, away_team_name, home_score, away_score, status, game_code, game_date, game_time, location, created_by, home_team:home_team_id(id, name, short_name)';
+  'id, home_team_id, away_team_name, home_score, away_score, status, game_code, game_date, game_time, location, created_by, home_team:home_team_id(id, name, short_name, avatar_teamlogo)';
 
 function toTickerGame(row: GameRow): TickerGame {
   const homeTeam = Array.isArray(row.home_team) ? row.home_team[0] ?? null : row.home_team;

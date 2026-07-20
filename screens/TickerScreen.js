@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  View, Text, TouchableOpacity, ScrollView, Image,
   SafeAreaView, StatusBar, ActivityIndicator, Alert,
 } from 'react-native';
 import { Trophy, Plus, RotateCcw, ArrowLeft, Flag } from 'lucide-react-native';
@@ -8,12 +8,8 @@ import { supabase } from '../lib/supabase';
 import { insertTickerEvents } from '../lib/tickerEvents';
 import { finishGame } from '../lib/finishGame';
 import { fetchTickerGameById } from '../lib/validateTickerAccess';
-
-const B = '#1A2F6E';
-const R = '#C01830';
-const BG = '#F0F4FF';
-const BORDER = '#D1D8F0';
-const MUTED = '#6B7280';
+import { useTheme } from '../context/ThemeContext';
+import { createTickerStyles } from '../theme/tickerStyles';
 
 const QUARTERS = [
   { key: '1', label: 'Q1' },
@@ -22,7 +18,20 @@ const QUARTERS = [
   { key: '4', label: 'Q4' },
 ];
 
+function TeamScoreLogo({ uri, label, styles }) {
+  if (uri) {
+    return <Image source={{ uri }} style={styles.scoreTeamLogo} resizeMode="contain" />;
+  }
+  return (
+    <View style={styles.scoreTeamLogoPlaceholder}>
+      <Text style={styles.scoreTeamLogoText}>{(label ?? '?').slice(0, 1).toUpperCase()}</Text>
+    </View>
+  );
+}
+
 export default function TickerScreen({ game, onBack, onExit, onGameUpdated }) {
+  const { colors } = useTheme();
+
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [teamRoster, setTeamRoster] = useState([]);
@@ -30,15 +39,20 @@ export default function TickerScreen({ game, onBack, onExit, onGameUpdated }) {
   const [saving, setSaving] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [eventQueue, setEventQueue] = useState([]);
+  const [awayLogoUrl, setAwayLogoUrl] = useState(null);
 
   const [scoreHome, setScoreHome] = useState(game?.home_score ?? 0);
   const [scoreAway, setScoreAway] = useState(game?.away_score ?? 0);
   const [selectedTeam, setSelectedTeam] = useState('home');
   const [selectedQuarter, setSelectedQuarter] = useState('1');
 
+  const styles = useMemo(() => createTickerStyles(colors, selectedTeam), [colors, selectedTeam]);
+  const teamAccent = selectedTeam === 'home' ? colors.primary : colors.accent;
+
   const isFinished = (game?.status ?? '').toLowerCase() === 'finished';
   const homeName = game?.home_team?.name ?? game?.home_team?.short_name ?? 'Heim';
   const awayName = game?.away_team_name ?? 'Gast';
+  const homeLogoUrl = game?.home_team?.avatar_teamlogo ?? null;
 
   const loadRoster = useCallback(async () => {
     if (!game?.home_team_id) {
@@ -75,6 +89,39 @@ export default function TickerScreen({ game, onBack, onExit, onGameUpdated }) {
   useEffect(() => {
     loadRoster();
   }, [loadRoster]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const name = game?.away_team_name?.trim();
+      if (!name) {
+        if (!cancelled) setAwayLogoUrl(null);
+        return;
+      }
+
+      const { data: byName } = await supabase
+        .from('teams')
+        .select('avatar_teamlogo')
+        .ilike('name', name)
+        .limit(1)
+        .maybeSingle();
+
+      if (byName?.avatar_teamlogo) {
+        if (!cancelled) setAwayLogoUrl(byName.avatar_teamlogo);
+        return;
+      }
+
+      const { data: byShort } = await supabase
+        .from('teams')
+        .select('avatar_teamlogo')
+        .ilike('short_name', name)
+        .limit(1)
+        .maybeSingle();
+
+      if (!cancelled) setAwayLogoUrl(byShort?.avatar_teamlogo ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [game?.away_team_name]);
 
   useEffect(() => {
     setScoreHome(game?.home_score ?? 0);
@@ -160,6 +207,8 @@ export default function TickerScreen({ game, onBack, onExit, onGameUpdated }) {
 
       if (error) throw error;
       setEventQueue([]);
+      setSelectedPlayer(null);
+      setIsDropdownOpen(false);
       onGameUpdated?.({
         ...game,
         home_score: scoreHome,
@@ -226,11 +275,11 @@ export default function TickerScreen({ game, onBack, onExit, onGameUpdated }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
 
       <View style={styles.topBar}>
         <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
-          <ArrowLeft size={20} color={B} />
+          <ArrowLeft size={20} color={colors.text} />
           <Text style={styles.backText}>Zurück</Text>
         </TouchableOpacity>
         <View style={styles.topBarCenter}>
@@ -256,7 +305,7 @@ export default function TickerScreen({ game, onBack, onExit, onGameUpdated }) {
 
         {isFinished ? (
           <View style={styles.finishedBanner}>
-            <Flag size={16} color={B} />
+            <Flag size={16} color={colors.text} />
             <Text style={styles.finishedBannerText}>Spiel beendet — Ticker gesperrt</Text>
           </View>
         ) : null}
@@ -268,14 +317,17 @@ export default function TickerScreen({ game, onBack, onExit, onGameUpdated }) {
             disabled={isFinished}
           >
             <Text style={styles.teamLabel} numberOfLines={1}>{homeName.toUpperCase()}</Text>
-            <Text style={styles.scoreNumber}>{scoreHome}</Text>
+            <View style={styles.scoreRow}>
+              <Text style={styles.scoreNumber}>{scoreHome}</Text>
+              <TeamScoreLogo uri={homeLogoUrl} label={homeName} styles={styles} />
+            </View>
           </TouchableOpacity>
 
           <View style={styles.vsContainer}>
             <Text style={styles.vsText}>VS</Text>
             {!isFinished && (
               <TouchableOpacity style={styles.resetButton} onPress={resetScore}>
-                <RotateCcw size={16} color={B} />
+                <RotateCcw size={16} color={colors.text} />
               </TouchableOpacity>
             )}
           </View>
@@ -286,7 +338,10 @@ export default function TickerScreen({ game, onBack, onExit, onGameUpdated }) {
             disabled={isFinished}
           >
             <Text style={styles.teamLabel} numberOfLines={1}>{awayName.toUpperCase()}</Text>
-            <Text style={styles.scoreNumber}>{scoreAway}</Text>
+            <View style={styles.scoreRow}>
+              <Text style={styles.scoreNumber}>{scoreAway}</Text>
+              <TeamScoreLogo uri={awayLogoUrl} label={awayName} styles={styles} />
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -341,7 +396,7 @@ export default function TickerScreen({ game, onBack, onExit, onGameUpdated }) {
               <TouchableOpacity style={styles.scoreButton} onPress={() => queueEvent('field_goal', 3)}>
                 <View style={styles.buttonHeader}>
                   <Text style={styles.buttonPointsGreen}>+3</Text>
-                  <Plus size={18} color={R} />
+                  <Plus size={18} color={teamAccent} />
                 </View>
                 <Text style={styles.buttonLabelSub}>FIELD GOAL</Text>
               </TouchableOpacity>
@@ -349,7 +404,7 @@ export default function TickerScreen({ game, onBack, onExit, onGameUpdated }) {
               <TouchableOpacity style={styles.scoreButton} onPress={() => queueEvent('safety', 2)}>
                 <View style={styles.buttonHeader}>
                   <Text style={styles.buttonPointsGreen}>+2</Text>
-                  <Plus size={18} color={R} />
+                  <Plus size={18} color={teamAccent} />
                 </View>
                 <Text style={styles.buttonLabelSub}>SAFETY</Text>
               </TouchableOpacity>
@@ -357,7 +412,7 @@ export default function TickerScreen({ game, onBack, onExit, onGameUpdated }) {
               <TouchableOpacity style={styles.scoreButton} onPress={() => queueEvent('two_point_conversion', 2)}>
                 <View style={styles.buttonHeader}>
                   <Text style={styles.buttonPointsGreen}>+2</Text>
-                  <Plus size={18} color={R} />
+                  <Plus size={18} color={teamAccent} />
                 </View>
                 <Text style={styles.buttonLabelSub}>2-PT CONVERSION</Text>
               </TouchableOpacity>
@@ -365,7 +420,7 @@ export default function TickerScreen({ game, onBack, onExit, onGameUpdated }) {
               <TouchableOpacity style={styles.scoreButton} onPress={() => queueEvent('extra_point', 1)}>
                 <View style={styles.buttonHeader}>
                   <Text style={styles.buttonPointsGreen}>+1</Text>
-                  <Plus size={18} color={R} />
+                  <Plus size={18} color={teamAccent} />
                 </View>
                 <Text style={styles.buttonLabelSub}>POINT AFTER (PAT)</Text>
               </TouchableOpacity>
@@ -381,7 +436,7 @@ export default function TickerScreen({ game, onBack, onExit, onGameUpdated }) {
               <Text style={[styles.inputLabel, { marginTop: 16 }]}>Involvierter Spieler (Optional, nur Heimteam)</Text>
 
               {rosterLoading ? (
-                <ActivityIndicator color={B} style={{ marginVertical: 16 }} />
+                <ActivityIndicator color={colors.text} style={{ marginVertical: 16 }} />
               ) : teamRoster.length === 0 ? (
                 <Text style={styles.emptyRoster}>Kein Kader für dieses Team hinterlegt.</Text>
               ) : (
@@ -398,7 +453,7 @@ export default function TickerScreen({ game, onBack, onExit, onGameUpdated }) {
                           : 'Spieler auswählen...'}
                       </Text>
                     </View>
-                    <Text style={{ color: isDropdownOpen ? R : MUTED, fontWeight: 'bold' }}>
+                    <Text style={{ color: isDropdownOpen ? teamAccent : colors.textMuted, fontWeight: 'bold' }}>
                       {isDropdownOpen ? '▲' : '▼'}
                     </Text>
                   </TouchableOpacity>
@@ -454,10 +509,10 @@ export default function TickerScreen({ game, onBack, onExit, onGameUpdated }) {
               activeOpacity={0.85}
             >
               {finishing ? (
-                <ActivityIndicator color={R} />
+                <ActivityIndicator color={teamAccent} />
               ) : (
                 <>
-                  <Flag size={18} color={R} />
+                  <Flag size={18} color={teamAccent} />
                   <Text style={styles.finishButtonText}>SPIEL BEENDEN (FT)</Text>
                 </>
               )}
@@ -470,160 +525,3 @@ export default function TickerScreen({ game, onBack, onExit, onGameUpdated }) {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#FFFFFF' },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-  },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 72 },
-  backText: { color: B, fontSize: 14, fontWeight: '700' },
-  topBarCenter: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
-  topBarTitle: { color: B, fontSize: 15, fontWeight: '900' },
-  topBarCode: { color: MUTED, fontSize: 10, fontWeight: '700', marginTop: 2, letterSpacing: 0.5 },
-  exitText: { color: R, fontSize: 13, fontWeight: '800', minWidth: 72, textAlign: 'right' },
-  container: { flex: 1, backgroundColor: '#FFFFFF', padding: 16 },
-  matchTitle: {
-    color: B, fontSize: 16, fontWeight: '900', textAlign: 'center', marginBottom: 4,
-  },
-  matchMeta: {
-    color: MUTED, fontSize: 12, textAlign: 'center', marginBottom: 12, fontWeight: '500',
-  },
-  finishedBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: BG,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: BORDER,
-  },
-  finishedBannerText: { color: B, fontSize: 13, fontWeight: '700' },
-  scoreboard: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: BG, borderRadius: 20, padding: 16,
-    borderWidth: 1, borderColor: BORDER, marginBottom: 16, marginTop: 8,
-  },
-  teamScoreBox: {
-    flex: 1, alignItems: 'center', paddingVertical: 12,
-    borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: BORDER,
-  },
-  activeTeamBox: { borderColor: R, backgroundColor: '#FFF0F2' },
-  teamLabel: { color: MUTED, fontSize: 10, fontWeight: '700', letterSpacing: 0.5, marginBottom: 4, textAlign: 'center' },
-  scoreNumber: { color: B, fontSize: 36, fontWeight: '900' },
-  vsContainer: { width: 50, alignItems: 'center' },
-  vsText: { color: MUTED, fontSize: 14, fontWeight: '800', fontStyle: 'italic' },
-  resetButton: { marginTop: 10, padding: 6, backgroundColor: BG, borderRadius: 8 },
-  infoText: { color: MUTED, fontSize: 13, textAlign: 'center', marginBottom: 12, fontWeight: '600' },
-  infoTeamText: { color: R, fontWeight: '800' },
-  quarterRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-    width: '100%',
-  },
-  quarterBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-    backgroundColor: BG,
-    borderWidth: 1.5,
-    borderColor: BORDER,
-  },
-  quarterBtnActive: {
-    backgroundColor: B,
-    borderColor: B,
-  },
-  quarterBtnText: {
-    color: B,
-    fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  quarterBtnTextActive: {
-    color: '#FFFFFF',
-  },
-  queueBanner: {
-    backgroundColor: '#FFF0F2',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#FECDD3',
-  },
-  queueBannerText: { color: R, fontSize: 12, fontWeight: '700', textAlign: 'center' },
-  buttonGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  scoreButton: {
-    backgroundColor: BG, borderWidth: 1.5, borderColor: BORDER,
-    borderRadius: 16, padding: 16, width: '48%', marginBottom: 16,
-  },
-  tdButton: { width: '100%', backgroundColor: R, borderColor: R },
-  statButton: {
-    width: '48%',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: BORDER,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  statButtonText: { color: B, fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
-  buttonHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  buttonPoints: { color: '#FFFFFF', fontSize: 24, fontWeight: '900' },
-  buttonPointsGreen: { color: R, fontSize: 24, fontWeight: '900' },
-  buttonLabel: { color: '#FFFFFF', fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
-  buttonLabelSub: { color: B, fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
-  sendUpdateButton: {
-    backgroundColor: B, borderColor: B, borderWidth: 2,
-    borderRadius: 16, padding: 18, width: '100%', marginTop: 16,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: B, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2, shadowRadius: 10, elevation: 4,
-  },
-  finishButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    backgroundColor: '#FFFFFF',
-    borderColor: R,
-    borderWidth: 2,
-    borderRadius: 16,
-    padding: 16,
-    width: '100%',
-    marginTop: 12,
-  },
-  finishButtonText: { color: R, fontSize: 14, fontWeight: '900', letterSpacing: 0.5 },
-  sendUpdateDisabled: { opacity: 0.6 },
-  sendUpdateDataText: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 4 },
-  sendUpdateButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900', letterSpacing: 0.5 },
-  inputLabel: { color: B, fontSize: 12, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5, width: '100%' },
-  emptyRoster: { color: MUTED, fontSize: 13, marginBottom: 16, fontStyle: 'italic', width: '100%' },
-  dropdownButton: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: BG, borderColor: BORDER, borderWidth: 1.5,
-    borderRadius: 12, paddingHorizontal: 16, height: 52, width: '100%',
-  },
-  dropdownButtonContent: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  dropdownPlaceholderText: { color: MUTED, fontSize: 14, fontWeight: '500' },
-  dropdownSelectedText: { color: B, fontSize: 14, fontWeight: '600' },
-  dropdownList: {
-    backgroundColor: '#FFFFFF', borderColor: BORDER, borderWidth: 1,
-    borderRadius: 12, marginTop: 4, marginBottom: 8, overflow: 'hidden', width: '100%',
-  },
-  dropdownItem: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: BORDER },
-  playerNumber: { color: R, fontWeight: '800', width: 40, fontSize: 14 },
-  playerName: { color: B, flex: 1, fontSize: 14, fontWeight: '500' },
-  playerPos: { color: MUTED, fontSize: 12, fontWeight: '700' },
-});

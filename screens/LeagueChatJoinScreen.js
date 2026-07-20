@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
-  StyleSheet,
   SafeAreaView,
   StatusBar,
   ScrollView,
@@ -12,15 +11,15 @@ import {
 } from 'react-native';
 import { ArrowLeft, Users, Check, Plus } from 'lucide-react-native';
 import { fetchLeagueChatOptions, joinLeagueConversation } from '../lib/chat';
+import { useTheme } from '../context/ThemeContext';
+import { createLeagueChatJoinStyles } from '../theme/chatStyles';
 
-const B = '#1A2F6E';
-const R = '#C01830';
-const BG = '#F0F4FF';
-const BORDER = '#D1D8F0';
-const MUTED = '#6B7280';
 const GREEN = '#10B981';
 
 export default function LeagueChatJoinScreen({ onBack, onJoined }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createLeagueChatJoinStyles(colors), [colors]);
+
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [joiningId, setJoiningId] = useState(null);
@@ -60,11 +59,11 @@ export default function LeagueChatJoinScreen({ onBack, onJoined }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
 
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.75}>
-          <ArrowLeft size={20} color={B} />
+          <ArrowLeft size={20} color={colors.text} />
           <Text style={styles.backBtnText}>Zurück</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Liga-Chat beitreten</Text>
@@ -76,7 +75,7 @@ export default function LeagueChatJoinScreen({ onBack, onJoined }) {
       </Text>
 
       {loading ? (
-        <ActivityIndicator color={B} style={{ marginTop: 32 }} />
+        <ActivityIndicator color={colors.text} style={{ marginTop: 32 }} />
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           {options.map((opt) => {
@@ -90,14 +89,14 @@ export default function LeagueChatJoinScreen({ onBack, onJoined }) {
                 activeOpacity={0.85}
               >
                 <View style={styles.cardIcon}>
-                  <Users size={20} color={B} />
+                  <Users size={20} color={colors.text} />
                 </View>
                 <View style={styles.cardBody}>
                   <Text style={styles.cardTitle}>{opt.league_name}</Text>
                   <Text style={styles.cardMeta}>{opt.member_count} Mitglieder</Text>
                 </View>
                 {busy ? (
-                  <ActivityIndicator color={B} size="small" />
+                  <ActivityIndicator color={colors.text} size="small" />
                 ) : opt.is_joined ? (
                   <View style={styles.joinedBadge}>
                     <Check size={14} color={GREEN} />
@@ -118,68 +117,3 @@ export default function LeagueChatJoinScreen({ onBack, onJoined }) {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-  },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, width: 72 },
-  backBtnText: { color: B, fontSize: 14, fontWeight: '700' },
-  headerTitle: { color: B, fontSize: 16, fontWeight: '900' },
-  hint: {
-    color: MUTED,
-    fontSize: 13,
-    lineHeight: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontWeight: '500',
-  },
-  scroll: { paddingHorizontal: 16 },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: BG,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: BORDER,
-    padding: 14,
-    marginBottom: 10,
-  },
-  cardIcon: {
-    width: 40, height: 40, borderRadius: 12,
-    backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center',
-  },
-  cardBody: { flex: 1 },
-  cardTitle: { color: B, fontSize: 15, fontWeight: '800' },
-  cardMeta: { color: MUTED, fontSize: 12, marginTop: 2 },
-  joinBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: R,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  joinText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
-  joinedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#ECFDF5',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  joinedText: { color: GREEN, fontSize: 11, fontWeight: '800' },
-});

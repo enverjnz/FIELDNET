@@ -13,6 +13,7 @@ import { CheckCircle } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
 import { birthDateProfileFields } from '../../lib/profileDates';
 import { resolveProfileAvatarUrl } from '../../lib/uploadImage';
+import { followTeam } from '../../lib/teamFollowers';
 import Step1_RoleSelect from './steps/Step1_RoleSelect';
 import Step2_BasicInfo from './steps/Step2_BasicInfo';
 import Step3_TeamSearch from './steps/Step3_TeamSearch';
@@ -24,6 +25,11 @@ import CoachStep4_Profile from './steps/CoachStep4_Profile';
 import PendingScreen from './PendingScreen';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+export type FollowedTeam = {
+  id: string;
+  name: string;
+};
 
 export type OnboardingData = {
   role: 'player' | 'fan' | 'coach';
@@ -43,8 +49,7 @@ export type OnboardingData = {
   height: string;
   nationality: string;
   // Fan
-  favoriteTeamId: string | null;
-  favoriteTeamName: string | null;
+  followedTeams: FollowedTeam[];
   favoriteRegions: string[];
   // Coach
   coachingRole: string;
@@ -68,8 +73,7 @@ const INITIAL_DATA: OnboardingData = {
   weight: '',
   height: '',
   nationality: '',
-  favoriteTeamId: null,
-  favoriteTeamName: null,
+  followedTeams: [],
   favoriteRegions: [],
   coachingRole: '',
   coachingLicense: '',
@@ -164,9 +168,10 @@ function CoachWelcomeScreen({ onContinue }: { onContinue: () => void }) {
 
 type Props = {
   onComplete: () => void;
+  onBack: () => void;
 };
 
-export default function PlayerOnboardingFlow({ onComplete }: Props) {
+export default function PlayerOnboardingFlow({ onComplete, onBack }: Props) {
   const [step, setStep] = useState(1);
   const [data, setData] = useState<OnboardingData>(INITIAL_DATA);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -251,8 +256,13 @@ export default function PlayerOnboardingFlow({ onComplete }: Props) {
         bio: data.bio.trim(),
         avatar: avatarUrl,
         ...birthDateProfileFields(data.birthDate),
+        favourite_team_id: data.followedTeams[0]?.id ?? null,
       });
       if (profileError) throw profileError;
+
+      for (const team of data.followedTeams) {
+        await followTeam(user.id, team.id);
+      }
 
       setDoneAs('fan');
     } catch (err: any) {
@@ -312,7 +322,7 @@ export default function PlayerOnboardingFlow({ onComplete }: Props) {
   // ─── Step rendering ──────────────────────────────────────────────────────────
   const renderStep = () => {
     if (step === 1) {
-      return <Step1_RoleSelect data={data} update={update} onNext={next} />;
+      return <Step1_RoleSelect data={data} update={update} onNext={next} onBack={onBack} />;
     }
 
     if (step === 2) {

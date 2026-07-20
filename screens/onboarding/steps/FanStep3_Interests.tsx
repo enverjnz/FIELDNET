@@ -39,6 +39,8 @@ export default function FanStep3_Interests({ data, update, onNext, onBack }: Pro
   const [hasSearched, setHasSearched] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const followedTeams = data.followedTeams ?? [];
+
   useEffect(() => () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
   }, []);
@@ -76,15 +78,24 @@ export default function FanStep3_Interests({ data, update, onNext, onBack }: Pro
     debounceRef.current = setTimeout(() => runSearch(text), 300);
   };
 
-  const selectTeam = (team: TeamSearchResult) => {
-    update({ favoriteTeamId: team.id, favoriteTeamName: team.name });
-    setQuery(team.name);
-    setResults([]);
-    setHasSearched(false);
+  const isTeamFollowed = (teamId: string) =>
+    followedTeams.some((team) => team.id === teamId);
+
+  const toggleTeam = (team: TeamSearchResult) => {
+    if (isTeamFollowed(team.id)) {
+      update({ followedTeams: followedTeams.filter((t) => t.id !== team.id) });
+      return;
+    }
+    update({
+      followedTeams: [...followedTeams, { id: team.id, name: team.name }],
+    });
   };
 
-  const clearTeam = () => {
-    update({ favoriteTeamId: null, favoriteTeamName: null });
+  const removeTeam = (teamId: string) => {
+    update({ followedTeams: followedTeams.filter((t) => t.id !== teamId) });
+  };
+
+  const clearSearch = () => {
     setQuery('');
     setResults([]);
     setHasSearched(false);
@@ -97,7 +108,7 @@ export default function FanStep3_Interests({ data, update, onNext, onBack }: Pro
     >
       <Text style={styles.title}>Deine Interessen</Text>
       <Text style={styles.subtitle}>
-        Wähle Regionen und dein Lieblingsteam. Beide Felder sind optional.
+        Wähle Regionen und Teams, denen du folgen möchtest. Beides ist optional.
       </Text>
 
       {/* Region Chips */}
@@ -119,8 +130,8 @@ export default function FanStep3_Interests({ data, update, onNext, onBack }: Pro
         })}
       </View>
 
-      {/* Favorite Team */}
-      <Text style={[styles.sectionLabel, { marginTop: 28 }]}>LIEBLINGSTEAM</Text>
+      {/* Follow Teams */}
+      <Text style={[styles.sectionLabel, { marginTop: 28 }]}>TEAMS FOLGEN</Text>
       <View style={styles.searchWrap}>
         <Search size={18} color="#1A2F6E" style={styles.searchIcon} />
         <TextInput
@@ -129,12 +140,11 @@ export default function FanStep3_Interests({ data, update, onNext, onBack }: Pro
           onChangeText={handleQueryChange}
           placeholder="Teamname, Kürzel oder Ort…"
           placeholderTextColor="#4A5568"
-          editable={!data.favoriteTeamId}
           autoCorrect={false}
         />
         {isLoading && <ActivityIndicator size="small" color="#1A2F6E" style={{ marginRight: 6 }} />}
-        {!!data.favoriteTeamId && (
-          <TouchableOpacity onPress={clearTeam} hitSlop={8}>
+        {!!query && (
+          <TouchableOpacity onPress={clearSearch} hitSlop={8}>
             <X size={18} color="#7C8BA1" />
           </TouchableOpacity>
         )}
@@ -144,23 +154,28 @@ export default function FanStep3_Interests({ data, update, onNext, onBack }: Pro
 
       {results.length > 0 && (
         <View style={styles.dropdown}>
-          {results.map((team, index) => (
-            <TouchableOpacity
-              key={team.id}
-              style={[
-                styles.dropdownItem,
-                index === results.length - 1 && styles.dropdownItemLast,
-              ]}
-              onPress={() => selectTeam(team)}
-              activeOpacity={0.75}
-            >
-              <TeamLogo team={team} />
-              <View style={styles.dropdownText}>
-                <Text style={styles.teamName}>{team.name}</Text>
-                <Text style={styles.teamTown}>{teamSearchMeta(team) || 'Kein Ort angegeben'}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+          {results.map((team, index) => {
+            const selected = isTeamFollowed(team.id);
+            return (
+              <TouchableOpacity
+                key={team.id}
+                style={[
+                  styles.dropdownItem,
+                  index === results.length - 1 && styles.dropdownItemLast,
+                  selected && styles.dropdownItemSelected,
+                ]}
+                onPress={() => toggleTeam(team)}
+                activeOpacity={0.75}
+              >
+                <TeamLogo team={team} />
+                <View style={styles.dropdownText}>
+                  <Text style={styles.teamName}>{team.name}</Text>
+                  <Text style={styles.teamTown}>{teamSearchMeta(team) || 'Kein Ort angegeben'}</Text>
+                </View>
+                {selected && <Check size={18} color="#1A2F6E" />}
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
 
@@ -168,10 +183,17 @@ export default function FanStep3_Interests({ data, update, onNext, onBack }: Pro
         <Text style={styles.emptyText}>Kein Team gefunden für „{query.trim()}“</Text>
       )}
 
-      {!!data.favoriteTeamId && (
-        <View style={styles.selectedBadge}>
-          <Star size={15} color="#1A2F6E" />
-          <Text style={styles.selectedText}>{data.favoriteTeamName}</Text>
+      {followedTeams.length > 0 && (
+        <View style={styles.selectedList}>
+          {followedTeams.map((team) => (
+            <View key={team.id} style={styles.selectedBadge}>
+              <Star size={15} color="#1A2F6E" />
+              <Text style={styles.selectedText}>{team.name}</Text>
+              <TouchableOpacity onPress={() => removeTeam(team.id)} hitSlop={8}>
+                <X size={16} color="#7C8BA1" />
+              </TouchableOpacity>
+            </View>
+          ))}
         </View>
       )}
 
@@ -246,6 +268,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: '#D1D8F0',
   },
   dropdownItemLast: { borderBottomWidth: 0 },
+  dropdownItemSelected: { backgroundColor: '#E8EDF8' },
   leagueLogo: { width: 32, height: 32, borderRadius: 6 },
   leagueLogoPlaceholder: {
     width: 32, height: 32, borderRadius: 6,
@@ -256,10 +279,11 @@ const styles = StyleSheet.create({
   dropdownText: { flex: 1 },
   teamName: { color: B, fontSize: 14, fontWeight: '700' },
   teamTown: { color: '#6B7280', fontSize: 12, marginTop: 2 },
+  selectedList: { gap: 8, marginTop: 12 },
   selectedBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: '#E8EDF8', borderRadius: 10, padding: 12,
-    borderWidth: 1.5, borderColor: B, marginTop: 12,
+    borderWidth: 1.5, borderColor: B,
   },
   selectedText: { color: B, fontSize: 13, fontWeight: '600', flex: 1 },
   skipHint: { color: '#9CA3AF', fontSize: 12, marginTop: 16, marginBottom: 24 },

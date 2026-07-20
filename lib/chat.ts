@@ -28,6 +28,7 @@ export type ConversationListItem = {
   last_message_at: string | null;
   other_user: ChatProfile | null;
   member_count: number;
+  unread_count: number;
 };
 
 async function requireUserId(): Promise<string> {
@@ -143,7 +144,7 @@ export async function ensureLeagueConversation(leagueId: string): Promise<string
     .insert({
       type: 'league',
       league_id: leagueId,
-      title: league?.name ? `${league.name} Chat` : 'Liga-Chat',
+      title: league?.name ? `${league.name} Forum` : 'Liga-Forum',
     })
     .select('id')
     .single();
@@ -158,7 +159,7 @@ export async function ensureLeagueConversation(leagueId: string): Promise<string
     if (retry?.id) return retry.id;
   }
 
-  if (error || !conv?.id) throw error ?? new Error('Liga-Chat konnte nicht erstellt werden.');
+  if (error || !conv?.id) throw error ?? new Error('Liga-Forum konnte nicht erstellt werden.');
   return conv.id;
 }
 
@@ -191,17 +192,28 @@ async function enrichConversations(
 
   const convIds = conversations.map((c) => c.id);
 
-  const [{ data: allMembers }, { data: recentMessages }] = await Promise.all([
-    supabase
-      .from('conversation_members')
-      .select('conversation_id, user_id')
-      .in('conversation_id', convIds),
-    supabase
-      .from('messages')
-      .select('conversation_id, content, created_at')
-      .in('conversation_id', convIds)
-      .order('created_at', { ascending: false }),
-  ]);
+  const [{ data: allMembers }, { data: recentMessages }, { data: myMemberships }, { data: unreadMessages }] =
+    await Promise.all([
+      supabase
+        .from('conversation_members')
+        .select('conversation_id, user_id')
+        .in('conversation_id', convIds),
+      supabase
+        .from('messages')
+        .select('conversation_id, content, created_at')
+        .in('conversation_id', convIds)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('conversation_members')
+        .select('conversation_id, last_read_at')
+        .eq('user_id', userId)
+        .in('conversation_id', convIds),
+      supabase
+        .from('messages')
+        .select('conversation_id, created_at, sender_id')
+        .in('conversation_id', convIds)
+        .neq('sender_id', userId),
+    ]);
 
   const memberCountMap = new Map<string, number>();
   const otherUserMap = new Map<string, string>();
@@ -221,6 +233,21 @@ async function enrichConversations(
     }
   }
 
+  const lastReadMap = new Map(
+    (myMemberships ?? []).map((m) => [m.conversation_id, m.last_read_at as string | null]),
+  );
+
+  const unreadCountMap = new Map<string, number>();
+  for (const msg of unreadMessages ?? []) {
+    const lastRead = lastReadMap.get(msg.conversation_id);
+    if (!lastRead || new Date(msg.created_at) > new Date(lastRead)) {
+      unreadCountMap.set(
+        msg.conversation_id,
+        (unreadCountMap.get(msg.conversation_id) ?? 0) + 1,
+      );
+    }
+  }
+
   const profileMap = await fetchProfilesMap([...otherUserMap.values()]);
 
   return conversations.map((conv) => {
@@ -236,6 +263,7 @@ async function enrichConversations(
       last_message_at: last?.created_at ?? null,
       other_user: otherId ? profileMap.get(otherId) ?? null : null,
       member_count: memberCountMap.get(conv.id) ?? 0,
+      unread_count: unreadCountMap.get(conv.id) ?? 0,
     };
   });
 }
@@ -393,6 +421,72 @@ export async function markConversationRead(conversationId: string): Promise<void
     .eq('user_id', userId);
 }
 
+/** Unread counts per conversation (messages from others after last_read_at). */
+export async function fetchUnreadCounts(): Promise<Record<string, number>> {
+  try {
+    const userId = await requireUserId();
+
+    const { data: memberships, error: memErr } = await supabase
+      .from('conversation_members')
+      .select('conversation_id, last_read_at')
+      .eq('user_id', userId);
+
+    if (memErr || !memberships?.length) return {};
+
+    const convIds = memberships.map((m) => m.conversation_id);
+    const lastReadMap = new Map(
+      memberships.map((m) => [m.conversation_id, m.last_read_at as string | null]),
+    );
+
+    const { data: messages, error: msgErr } = await supabase
+      .from('messages')
+      .select('conversation_id, created_at, sender_id')
+      .in('conversation_id', convIds)
+      .neq('sender_id', userId);
+
+    if (msgErr || !messages?.length) return {};
+
+    const counts: Record<string, number> = {};
+    for (const msg of messages) {
+      const lastRead = lastReadMap.get(msg.conversation_id);
+      if (!lastRead || new Date(msg.created_at) > new Date(lastRead)) {
+        counts[msg.conversation_id] = (counts[msg.conversation_id] ?? 0) + 1;
+      }
+    }
+    return counts;
+  } catch {
+    return {};
+  }
+}
+
+/** True if any joined conversation has unread messages. */
+export async function hasUnreadChats(): Promise<boolean> {
+  const counts = await fetchUnreadCounts();
+  return Object.values(counts).some((n) => n > 0);
+}
+
+export function subscribeToIncomingMessages(onInsert: () => void) {
+  const channelName = `unread-messages:${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const channel = supabase
+    .channel(channelName)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+      },
+      () => {
+        onInsert();
+      },
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
 export async function getConversationTitle(
   conversationId: string,
   userId: string,
@@ -406,7 +500,7 @@ export async function getConversationTitle(
   if (!conv) return 'Chat';
 
   if (conv.type === 'league') {
-    return conv.title ?? 'Liga-Chat';
+    return conv.title ?? 'Liga-Forum';
   }
 
   const { data: members } = await supabase

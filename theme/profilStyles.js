@@ -39,6 +39,37 @@ export function createProfilStyles(c) {
     fullName: { color: c.text, fontSize: 24, fontWeight: '900', marginBottom: 8, textAlign: 'center' },
     bio:      { color: c.textMuted, fontSize: 13, lineHeight: 20, textAlign: 'center', maxWidth: 300 },
 
+    profileTabs: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 20,
+      backgroundColor: c.card,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: c.border,
+      padding: 4,
+    },
+    profileTab: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 10,
+      borderRadius: 10,
+    },
+    profileTabActive: {
+      backgroundColor: c.accent,
+    },
+    profileTabText: {
+      color: c.textMuted,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    profileTabTextActive: {
+      color: '#FFFFFF',
+    },
+
     sectionTitle: {
       color: c.textMuted, fontSize: 10, fontWeight: '800',
       letterSpacing: 1.2, marginBottom: 10, marginTop: 4,
@@ -55,6 +86,17 @@ export function createProfilStyles(c) {
       flexDirection: 'row', alignItems: 'center',
       paddingHorizontal: 16, paddingVertical: 14, gap: 12,
     },
+    teamRowWithAction: {
+      paddingRight: 8,
+      paddingVertical: 0,
+      paddingHorizontal: 0,
+      gap: 0,
+    },
+    teamRowMain: {
+      flex: 1,
+      flexDirection: 'row', alignItems: 'center',
+      paddingHorizontal: 16, paddingVertical: 14, gap: 12,
+    },
     teamRowBorder: { borderTopWidth: 1, borderTopColor: c.border },
     teamLogo:      { width: 36, height: 36, borderRadius: 8 },
     teamLogoPlaceholder: {
@@ -67,6 +109,15 @@ export function createProfilStyles(c) {
       paddingHorizontal: 8, paddingVertical: 3,
     },
     coachTeamBadgeText: { color: c.text, fontSize: 10, fontWeight: '800', letterSpacing: 0.4 },
+    followBadge: {
+      backgroundColor: iconBg, borderRadius: 8,
+      paddingHorizontal: 8, paddingVertical: 3,
+    },
+    followBadgeText: { color: c.text, fontSize: 10, fontWeight: '800', letterSpacing: 0.4 },
+    unfollowBtn: {
+      width: 32, height: 32, borderRadius: 8,
+      alignItems: 'center', justifyContent: 'center',
+    },
 
     badge: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
     badgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.4 },

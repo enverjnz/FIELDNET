@@ -7,17 +7,24 @@ import {
 import {
   User, Shield, Users, Ruler, Weight,
   Flag, Hash, Calendar, Pencil, Check, X, Camera,
-  Briefcase, Award, Clock, Target, Search, UserPlus, Trophy, ChevronRight,
+  Briefcase, Award, Clock, Target, Search, UserPlus, Trophy, ChevronRight, Star, Images,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
+import { unfollowTeam } from '../lib/teamFollowers';
+import {
+  fetchFollowedProfiles,
+  unfollowProfile,
+} from '../lib/profileFollowers';
 import {
   formatDisplayDate, parseBirthDate, ageFromBirthDate, birthDateProfileFields,
 } from '../lib/profileDates';
 import { resolveProfileAvatarUrl } from '../lib/uploadImage';
 import BirthDateField from '../components/BirthDateField';
 import TeamProfileScreen from './TeamProfileScreen';
+import PlayerProfileScreen from './PlayerProfileScreen';
 import FullscreenImageModal from '../components/FullscreenImageModal';
+import ProfileGallery from '../components/ProfileGallery';
 import { useTheme } from '../context/ThemeContext';
 import { createProfilStyles } from '../theme/profilStyles';
 
@@ -99,8 +106,9 @@ export default function ProfilScreen({ refreshKey = 0 }) {
   const styles = useMemo(() => createProfilStyles(colors), [colors]);
 
   const [profile, setProfile]         = useState(null);
-  const [email, setEmail]             = useState('');
   const [memberships, setMemberships] = useState([]);
+  const [followedTeams, setFollowedTeams] = useState([]);
+  const [followedProfiles, setFollowedProfiles] = useState([]);
   const [coachTeam, setCoachTeam]     = useState(null);
   const [loading, setLoading]         = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
@@ -116,7 +124,9 @@ export default function ProfilScreen({ refreshKey = 0 }) {
   const [joiningTeamId, setJoiningTeamId]     = useState(null);
   const [profileTeamId, setProfileTeamId]     = useState(null);
   const [teamProfileId, setTeamProfileId]     = useState(null);
+  const [viewedProfileId, setViewedProfileId] = useState(null);
   const [fullscreenAvatar, setFullscreenAvatar] = useState(null);
+  const [profileTab, setProfileTab]           = useState('info'); // 'info' | 'gallery'
   const searchRef = useRef(null);
   const debounceRef = useRef(null);
 
@@ -129,8 +139,6 @@ export default function ProfilScreen({ refreshKey = 0 }) {
         return;
       }
 
-      setEmail(user.email ?? '');
-
       const { data: prof, error: profErr } = await supabase
         .from('profiles')
         .select('*')
@@ -142,20 +150,45 @@ export default function ProfilScreen({ refreshKey = 0 }) {
       }
       setProfile(prof ?? null);
 
-      const { data: mem } = await supabase
-        .from('team_memberships')
-        .select('status, teams(id, name, avatar_teamlogo)')
-        .eq('player_id', user.id);
+      try {
+        const followed = await fetchFollowedProfiles(user.id);
+        setFollowedProfiles(followed);
+      } catch (e) {
+        console.warn('ProfilScreen followed profiles:', e?.message);
+        setFollowedProfiles([]);
+      }
 
-      setMemberships(mem ?? []);
+      if (prof?.role === 'fan') {
+        const { data: follows } = await supabase
+          .from('followers')
+          .select('team_id, teams(id, name, short_name, town, avatar_teamlogo)')
+          .eq('user_id', user.id);
 
-      const { data: managerRow } = await supabase
-        .from('team_managers')
-        .select('teams(id, name, short_name, town, avatar_teamlogo)')
-        .eq('profile_id', user.id)
-        .maybeSingle();
+        setFollowedTeams(
+          (follows ?? [])
+            .map((row) => row.teams)
+            .filter(Boolean),
+        );
+        setMemberships([]);
+        setCoachTeam(null);
+      } else {
+        setFollowedTeams([]);
 
-      setCoachTeam(managerRow?.teams ?? null);
+        const { data: mem } = await supabase
+          .from('team_memberships')
+          .select('status, teams(id, name, avatar_teamlogo)')
+          .eq('player_id', user.id);
+
+        setMemberships(mem ?? []);
+
+        const { data: managerRow } = await supabase
+          .from('team_managers')
+          .select('teams(id, name, short_name, town, avatar_teamlogo)')
+          .eq('profile_id', user.id)
+          .maybeSingle();
+
+        setCoachTeam(managerRow?.teams ?? null);
+      }
     } catch (e) {
       console.warn('ProfilScreen fetch error:', e?.message);
     } finally {
@@ -203,6 +236,7 @@ export default function ProfilScreen({ refreshKey = 0 }) {
   };
 
   const joinTeam = async (team) => {
+    if (profile?.role === 'fan') return;
     setJoiningTeamId(team.id);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -227,6 +261,34 @@ export default function ProfilScreen({ refreshKey = 0 }) {
     } finally {
       setJoiningTeamId(null);
     }
+  };
+
+  const handleUnfollowTeam = async (team) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Nicht eingeloggt.');
+      await unfollowTeam(user.id, team.id);
+      fetchProfile();
+    } catch (err) {
+      Alert.alert('Fehler', err?.message ?? 'Unbekannter Fehler');
+    }
+  };
+
+  const handleUnfollowProfile = async (person) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Nicht eingeloggt.');
+      await unfollowProfile(user.id, person.id);
+      fetchProfile(true);
+    } catch (err) {
+      Alert.alert('Fehler', err?.message ?? 'Unbekannter Fehler');
+    }
+  };
+
+  const roleLabel = (role) => {
+    if (role === 'fan') return 'Fan';
+    if (role === 'coach') return 'Coach';
+    return 'Spieler';
   };
 
   // ── Edit helpers ────────────────────────────────────────────────────────────
@@ -364,9 +426,6 @@ export default function ProfilScreen({ refreshKey = 0 }) {
   }
 
   const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Unbekannt';
-  const memberSince = profile.created_at
-    ? new Date(profile.created_at).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
-    : '–';
   const displayAge = ageFromBirthDate(profile.birth_date) ?? (profile.age != null ? profile.age : null);
   const displayBirthDate = profile.birth_date
     ? formatDisplayDate(parseBirthDate(profile.birth_date))
@@ -379,12 +438,29 @@ export default function ProfilScreen({ refreshKey = 0 }) {
         <TeamProfileScreen
           teamId={teamProfileId}
           readOnly={!(profile.role === 'coach' && coachTeam?.id === teamProfileId)}
-          onBack={() => setTeamProfileId(null)}
+          onBack={() => {
+            setTeamProfileId(null);
+            if (profile.role === 'fan') fetchProfile(true);
+          }}
           onRequestJoin={
-            profile.role !== 'coach'
+            profile.role === 'player'
               ? (team) => { joinTeam(team); setTeamProfileId(null); }
               : undefined
           }
+          onFollowChange={profile.role === 'fan' ? () => fetchProfile(true) : undefined}
+          onMembershipChange={() => fetchProfile(true)}
+        />
+      );
+    }
+
+    if (viewedProfileId) {
+      return (
+        <PlayerProfileScreen
+          profileId={viewedProfileId}
+          onBack={() => {
+            setViewedProfileId(null);
+            fetchProfile(true);
+          }}
         />
       );
     }
@@ -426,13 +502,52 @@ export default function ProfilScreen({ refreshKey = 0 }) {
             {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
           </View>
 
-          {/* TEAM */}
+          {/* TABS */}
+          <View style={styles.profileTabs}>
+            <TouchableOpacity
+              style={[styles.profileTab, profileTab === 'info' && styles.profileTabActive]}
+              onPress={() => setProfileTab('info')}
+              activeOpacity={0.8}
+            >
+              <User size={16} color={profileTab === 'info' ? '#FFFFFF' : colors.textMuted} />
+              <Text style={[styles.profileTabText, profileTab === 'info' && styles.profileTabTextActive]}>
+                Profil
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.profileTab, profileTab === 'gallery' && styles.profileTabActive]}
+              onPress={() => setProfileTab('gallery')}
+              activeOpacity={0.8}
+            >
+              <Images size={16} color={profileTab === 'gallery' ? '#FFFFFF' : colors.textMuted} />
+              <Text style={[styles.profileTabText, profileTab === 'gallery' && styles.profileTabTextActive]}>
+                Galerie
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {profileTab === 'gallery' ? (
+            <>
+              <Text style={styles.sectionTitle}>GALERIE</Text>
+              <ProfileGallery profileId={profile.id} canEdit />
+            </>
+          ) : (
+          <>
+          {/* TEAM / GEFOLGTE TEAMS */}
           <View style={styles.sectionRow}>
-            <Text style={styles.sectionTitle}>TEAM</Text>
-            {profile.role !== 'coach' && memberships.length === 0 && (
+            <Text style={styles.sectionTitle}>
+              {profile.role === 'fan' ? 'GEFOLGTE TEAMS' : 'TEAM'}
+            </Text>
+            {profile.role === 'player' && memberships.length === 0 && (
               <TouchableOpacity style={styles.joinBtn} onPress={openTeamSearch} activeOpacity={0.8}>
                 <UserPlus size={13} color={colors.accent} />
                 <Text style={styles.joinBtnText}>Team suchen</Text>
+              </TouchableOpacity>
+            )}
+            {profile.role === 'fan' && (
+              <TouchableOpacity style={styles.joinBtn} onPress={openTeamSearch} activeOpacity={0.8}>
+                <Star size={13} color={colors.accent} />
+                <Text style={styles.joinBtnText}>Team folgen</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -470,6 +585,54 @@ export default function ProfilScreen({ refreshKey = 0 }) {
                   </View>
                 </View>
               )
+            ) : profile.role === 'fan' ? (
+              followedTeams.length === 0 ? (
+                <TouchableOpacity style={styles.emptyTeamBtn} onPress={openTeamSearch} activeOpacity={0.8}>
+                  <View style={styles.emptyTeamIcon}>
+                    <Star size={22} color={colors.text} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.emptyTeamTitle}>Noch keine Teams</Text>
+                    <Text style={styles.emptyTeamSub}>Tippe hier, um Teams zu suchen und zu folgen</Text>
+                  </View>
+                  <Search size={16} color={colors.textMuted} />
+                </TouchableOpacity>
+              ) : (
+                followedTeams.map((team, i) => (
+                  <View
+                    key={team.id}
+                    style={[styles.teamRow, styles.teamRowWithAction, i > 0 && styles.teamRowBorder]}
+                  >
+                    <TouchableOpacity
+                      style={styles.teamRowMain}
+                      onPress={() => setTeamProfileId(team.id)}
+                      activeOpacity={0.75}
+                    >
+                      {team.avatar_teamlogo
+                        ? <Image source={{ uri: team.avatar_teamlogo }} style={styles.teamLogo} resizeMode="contain" />
+                        : <View style={styles.teamLogoPlaceholder}><Star size={18} color={colors.text} /></View>
+                      }
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.teamName} numberOfLines={1}>{team.name}</Text>
+                        <Text style={styles.resultMeta}>
+                          {[team.town, team.short_name].filter(Boolean).join(' · ') || 'Team'}
+                        </Text>
+                      </View>
+                      <View style={styles.followBadge}>
+                        <Text style={styles.followBadgeText}>Folge ich</Text>
+                      </View>
+                      <ChevronRight size={18} color={colors.textMuted} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleUnfollowTeam(team)}
+                      hitSlop={8}
+                      style={styles.unfollowBtn}
+                    >
+                      <X size={16} color={colors.textMuted} />
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )
             ) : memberships.length === 0 ? (
               <TouchableOpacity style={styles.emptyTeamBtn} onPress={openTeamSearch} activeOpacity={0.8}>
                 <View style={styles.emptyTeamIcon}>
@@ -501,6 +664,54 @@ export default function ProfilScreen({ refreshKey = 0 }) {
             )}
           </View>
 
+          {followedProfiles.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>GEFOLGTE NUTZER</Text>
+              <View style={styles.card}>
+                {followedProfiles.map((person, i) => {
+                  const name = [person.first_name, person.last_name].filter(Boolean).join(' ') || 'Unbekannt';
+                  return (
+                    <View
+                      key={person.id}
+                      style={[styles.teamRow, styles.teamRowWithAction, i > 0 && styles.teamRowBorder]}
+                    >
+                      <TouchableOpacity
+                        style={styles.teamRowMain}
+                        onPress={() => setViewedProfileId(person.id)}
+                        activeOpacity={0.75}
+                      >
+                        {person.avatar
+                          ? <Image source={{ uri: person.avatar }} style={styles.teamLogo} />
+                          : (
+                            <View style={styles.teamLogoPlaceholder}>
+                              <User size={18} color={colors.text} />
+                            </View>
+                          )}
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.teamName} numberOfLines={1}>{name}</Text>
+                          <Text style={styles.resultMeta}>
+                            {[roleLabel(person.role), person.position].filter(Boolean).join(' · ')}
+                          </Text>
+                        </View>
+                        <View style={styles.followBadge}>
+                          <Text style={styles.followBadgeText}>Folge ich</Text>
+                        </View>
+                        <ChevronRight size={18} color={colors.textMuted} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleUnfollowProfile(person)}
+                        hitSlop={8}
+                        style={styles.unfollowBtn}
+                      >
+                        <X size={16} color={colors.textMuted} />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            </>
+          )}
+
           {/* TEAM SEARCH MODAL */}
           <Modal
             visible={showTeamSearch}
@@ -512,11 +723,20 @@ export default function ProfilScreen({ refreshKey = 0 }) {
               <TeamProfileScreen
                 teamId={profileTeamId}
                 readOnly
-                onBack={() => setProfileTeamId(null)}
-                onRequestJoin={(team) => {
-                  joinTeam(team);
+                onBack={() => {
                   setProfileTeamId(null);
+                  if (profile.role === 'fan') fetchProfile(true);
                 }}
+                onRequestJoin={
+                  profile.role === 'player'
+                    ? (team) => {
+                        joinTeam(team);
+                        setProfileTeamId(null);
+                      }
+                    : undefined
+                }
+                onFollowChange={profile.role === 'fan' ? () => fetchProfile(true) : undefined}
+                onMembershipChange={() => fetchProfile(true)}
               />
             ) : (
             <KeyboardAvoidingView
@@ -525,7 +745,9 @@ export default function ProfilScreen({ refreshKey = 0 }) {
             >
               {/* Modal Header */}
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Team suchen</Text>
+                <Text style={styles.modalTitle}>
+                  {profile.role === 'fan' ? 'Team folgen' : 'Team suchen'}
+                </Text>
                 <TouchableOpacity onPress={() => setShowTeamSearch(false)} hitSlop={8}>
                   <X size={22} color={colors.text} />
                 </TouchableOpacity>
@@ -626,25 +848,8 @@ export default function ProfilScreen({ refreshKey = 0 }) {
               </View>
             </>
           )}
-
-          {/* KONTO */}
-          <Text style={styles.sectionTitle}>KONTO</Text>
-          <View style={styles.card}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>E-Mail</Text>
-              <Text style={styles.infoValue} numberOfLines={1}>{email || '–'}</Text>
-            </View>
-            {displayBirthDate ? (
-              <View style={[styles.infoRow, styles.infoRowBorder]}>
-                <Text style={styles.infoLabel}>Geburtsdatum</Text>
-                <Text style={styles.infoValue}>{displayBirthDate}</Text>
-              </View>
-            ) : null}
-            <View style={[styles.infoRow, styles.infoRowBorder]}>
-              <Text style={styles.infoLabel}>Mitglied seit</Text>
-              <Text style={styles.infoValue}>{memberSince}</Text>
-            </View>
-          </View>
+          </>
+          )}
 
           <View style={{ height: 40 }} />
         </ScrollView>

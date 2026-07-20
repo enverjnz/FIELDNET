@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   FlatList,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   SafeAreaView,
   StatusBar,
   ActivityIndicator,
@@ -24,14 +23,13 @@ import {
   subscribeToMessages,
   formatChatName,
 } from '../lib/chat';
+import { useTheme } from '../context/ThemeContext';
+import { createChatRoomStyles } from '../theme/chatStyles';
 
-const B = '#1A2F6E';
-const R = '#C01830';
-const BG = '#F0F4FF';
-const BORDER = '#D1D8F0';
-const MUTED = '#6B7280';
+export default function ChatRoomScreen({ conversationId, onBack, onRead }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createChatRoomStyles(colors), [colors]);
 
-export default function ChatRoomScreen({ conversationId, onBack }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -39,39 +37,53 @@ export default function ChatRoomScreen({ conversationId, onBack }) {
   const [title, setTitle] = useState('Chat');
   const [currentUserId, setCurrentUserId] = useState(null);
   const listRef = useRef(null);
+  const onReadRef = useRef(onRead);
+  const onBackRef = useRef(onBack);
+  onReadRef.current = onRead;
+  onBackRef.current = onBack;
 
   const scrollToEnd = useCallback(() => {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
   }, []);
 
-  const load = useCallback(async () => {
-    if (!conversationId) return;
-    setLoading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Nicht eingeloggt.');
-      setCurrentUserId(user.id);
-
-      const [msgs, chatTitle] = await Promise.all([
-        fetchMessages(conversationId),
-        getConversationTitle(conversationId, user.id),
-      ]);
-
-      setMessages(msgs);
-      setTitle(chatTitle);
-      await markConversationRead(conversationId);
-      scrollToEnd();
-    } catch (e) {
-      Alert.alert('Fehler', e?.message ?? 'Chat konnte nicht geladen werden.');
-      onBack?.();
-    } finally {
-      setLoading(false);
-    }
-  }, [conversationId, onBack, scrollToEnd]);
-
   useEffect(() => {
-    load();
-  }, [load]);
+    if (!conversationId) return undefined;
+
+    let cancelled = false;
+
+    (async () => {
+      setLoading(true);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Nicht eingeloggt.');
+        if (cancelled) return;
+        setCurrentUserId(user.id);
+
+        const [msgs, chatTitle] = await Promise.all([
+          fetchMessages(conversationId),
+          getConversationTitle(conversationId, user.id),
+        ]);
+
+        if (cancelled) return;
+        setMessages(msgs);
+        setTitle(chatTitle);
+        await markConversationRead(conversationId);
+        if (cancelled) return;
+        onReadRef.current?.();
+        scrollToEnd();
+      } catch (e) {
+        if (cancelled) return;
+        Alert.alert('Fehler', e?.message ?? 'Chat konnte nicht geladen werden.');
+        onBackRef.current?.();
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, scrollToEnd]);
 
   useEffect(() => {
     if (!conversationId) return undefined;
@@ -82,7 +94,7 @@ export default function ChatRoomScreen({ conversationId, onBack }) {
         return [...prev, msg];
       });
       scrollToEnd();
-      markConversationRead(conversationId);
+      markConversationRead(conversationId).then(() => onReadRef.current?.());
     });
 
     return unsubscribe;
@@ -129,18 +141,22 @@ export default function ChatRoomScreen({ conversationId, onBack }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
 
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.75}>
-          <ArrowLeft size={20} color={B} />
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => onBackRef.current?.()}
+          activeOpacity={0.75}
+        >
+          <ArrowLeft size={20} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
         <View style={{ width: 36 }} />
       </View>
 
       {loading ? (
-        <ActivityIndicator color={B} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={colors.text} style={{ marginTop: 40 }} />
       ) : (
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -167,7 +183,7 @@ export default function ChatRoomScreen({ conversationId, onBack }) {
               value={draft}
               onChangeText={setDraft}
               placeholder="Nachricht schreiben…"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.textMuted}
               multiline
               maxLength={2000}
             />
@@ -188,68 +204,3 @@ export default function ChatRoomScreen({ conversationId, onBack }) {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-    gap: 8,
-  },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, color: B, fontSize: 16, fontWeight: '900', textAlign: 'center' },
-  listContent: { padding: 16, paddingBottom: 8, flexGrow: 1 },
-  emptyWrap: { paddingVertical: 40, alignItems: 'center' },
-  emptyText: { color: MUTED, fontSize: 14, fontWeight: '600', textAlign: 'center' },
-  msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 12 },
-  msgRowMine: { justifyContent: 'flex-end' },
-  msgAvatar: { width: 28, height: 28, borderRadius: 8 },
-  msgAvatarPlaceholder: {
-    width: 28, height: 28, borderRadius: 8, backgroundColor: B,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  msgAvatarText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
-  msgBubble: {
-    maxWidth: '78%',
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  msgBubbleOther: { backgroundColor: BG, borderWidth: 1, borderColor: BORDER },
-  msgBubbleMine: { backgroundColor: B },
-  msgSender: { color: MUTED, fontSize: 10, fontWeight: '700', marginBottom: 2 },
-  msgText: { color: B, fontSize: 14, lineHeight: 20, fontWeight: '500' },
-  msgTextMine: { color: '#FFFFFF' },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: BORDER,
-    backgroundColor: '#FFFFFF',
-  },
-  input: {
-    flex: 1,
-    minHeight: 42,
-    maxHeight: 120,
-    backgroundColor: BG,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: BORDER,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: B,
-    fontSize: 14,
-  },
-  sendBtn: {
-    width: 42, height: 42, borderRadius: 12,
-    backgroundColor: R, alignItems: 'center', justifyContent: 'center',
-  },
-  sendBtnDisabled: { opacity: 0.5 },
-});

@@ -4,6 +4,7 @@ export const STORAGE_BUCKETS = {
   profileAvatars: 'profile_avatars',
   teamLogos: 'team_logos',
   postImages: 'post_images',
+  profileMedia: 'profile_media',
 } as const;
 
 export function isLocalImageUri(uri: string | null | undefined): boolean {
@@ -19,13 +20,13 @@ export function isLocalImageUri(uri: string | null | undefined): boolean {
 async function uriToArrayBuffer(uri: string): Promise<ArrayBuffer> {
   const response = await fetch(uri);
   if (!response.ok) {
-    throw new Error('Bild konnte nicht gelesen werden.');
+    throw new Error('Datei konnte nicht gelesen werden.');
   }
   return response.arrayBuffer();
 }
 
 function extensionFromUri(uri: string): string {
-  const match = uri.match(/\.(jpe?g|png|webp|gif)(\?|$)/i);
+  const match = uri.match(/\.(jpe?g|png|webp|gif|mp4|mov|m4v|webm)(\?|$)/i);
   if (!match) return 'jpg';
   const ext = match[1].toLowerCase();
   return ext === 'jpeg' ? 'jpg' : ext;
@@ -39,12 +40,26 @@ function contentTypeForExt(ext: string): string {
       return 'image/webp';
     case 'gif':
       return 'image/gif';
+    case 'mp4':
+      return 'video/mp4';
+    case 'mov':
+      return 'video/quicktime';
+    case 'm4v':
+      return 'video/x-m4v';
+    case 'webm':
+      return 'video/webm';
     default:
       return 'image/jpeg';
   }
 }
 
-async function uploadImage(
+export function mediaTypeFromUri(uri: string): 'image' | 'video' {
+  const ext = extensionFromUri(uri);
+  if (['mp4', 'mov', 'm4v', 'webm'].includes(ext)) return 'video';
+  return 'image';
+}
+
+async function uploadFile(
   bucket: string,
   path: string,
   localUri: string,
@@ -65,15 +80,31 @@ async function uploadImage(
 }
 
 export async function uploadProfileAvatar(userId: string, localUri: string): Promise<string> {
-  return uploadImage(STORAGE_BUCKETS.profileAvatars, `${userId}/avatar`, localUri);
+  return uploadFile(STORAGE_BUCKETS.profileAvatars, `${userId}/avatar`, localUri);
 }
 
 export async function uploadTeamLogo(teamId: string, localUri: string): Promise<string> {
-  return uploadImage(STORAGE_BUCKETS.teamLogos, `${teamId}/logo`, localUri);
+  return uploadFile(STORAGE_BUCKETS.teamLogos, `${teamId}/logo`, localUri);
 }
 
 export async function uploadPostImage(postId: string, localUri: string): Promise<string> {
-  return uploadImage(STORAGE_BUCKETS.postImages, `${postId}/${Date.now()}`, localUri);
+  return uploadFile(STORAGE_BUCKETS.postImages, `${postId}/${Date.now()}`, localUri);
+}
+
+export async function uploadProfileGalleryMedia(
+  userId: string,
+  localUri: string,
+  preferredType?: 'image' | 'video',
+): Promise<{ url: string; mediaType: 'image' | 'video' }> {
+  const mediaType = preferredType ?? mediaTypeFromUri(localUri);
+  const fallbackExt = mediaType === 'video' ? 'mp4' : 'jpg';
+  const ext = extensionFromUri(localUri) || fallbackExt;
+  const url = await uploadFile(
+    STORAGE_BUCKETS.profileMedia,
+    `${userId}/${Date.now()}.${ext}`,
+    localUri,
+  );
+  return { url, mediaType };
 }
 
 /** Lokalen URI hochladen oder bestehende Remote-URL unverändert zurückgeben. */

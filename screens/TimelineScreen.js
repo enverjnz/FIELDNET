@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, SafeAreaView,
+  View, Text, ScrollView, SafeAreaView,
   TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { ChevronLeft, Clock } from 'lucide-react-native';
@@ -12,14 +12,13 @@ import {
   formatScore,
   playerEventLabel,
 } from '../lib/tickerEvents';
-
-const B = '#1A2F6E';
-const R = '#C01830';
-const BG = '#F0F4FF';
-const BORDER = '#D1D8F0';
-const MUTED = '#6B7280';
+import { useTheme } from '../context/ThemeContext';
+import { createTimelineStyles } from '../theme/tickerCodeStyles';
 
 export default function TimelineScreen({ gameId, onBack }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createTimelineStyles(colors), [colors]);
+
   const [game, setGame] = useState(null);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +77,7 @@ export default function TimelineScreen({ gameId, onBack }) {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={onBack}>
-          <ChevronLeft size={24} color={R} />
+          <ChevronLeft size={24} color={colors.accent} />
           <Text style={styles.backText}>Zurück</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Spielverlauf</Text>
@@ -88,7 +87,7 @@ export default function TimelineScreen({ gameId, onBack }) {
       <View style={styles.matchBar}>
         <Text style={styles.teamsText}>
           {homeName.toUpperCase()}{' '}
-          <Text style={{ color: R }}>{homeScore} : {awayScore}</Text>{' '}
+          <Text style={{ color: colors.accent }}>{homeScore} : {awayScore}</Text>{' '}
           {awayName.toUpperCase()}
         </Text>
         <Text style={styles.dateText}>
@@ -97,7 +96,7 @@ export default function TimelineScreen({ gameId, onBack }) {
       </View>
 
       {loading ? (
-        <ActivityIndicator color={B} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={colors.text} style={{ marginTop: 40 }} />
       ) : error ? (
         <Text style={styles.errorText}>{error}</Text>
       ) : events.length === 0 ? (
@@ -144,7 +143,7 @@ export default function TimelineScreen({ gameId, onBack }) {
               return (
                 <View key={item.id} style={styles.eventRow}>
                   <View style={styles.timeWrapper}>
-                    <Clock size={10} color={MUTED} style={{ marginRight: 2 }} />
+                    <Clock size={10} color={colors.textMuted} style={{ marginRight: 2 }} />
                     <Text style={styles.timeText}>{timeLabel}</Text>
                   </View>
 
@@ -172,59 +171,3 @@ export default function TimelineScreen({ gameId, onBack }) {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: '#FFFFFF',
-  },
-  backButton: { flexDirection: 'row', alignItems: 'center', width: 80 },
-  backText: { color: R, fontSize: 14, fontWeight: '600', marginLeft: 2 },
-  headerTitle: { color: B, fontSize: 16, fontWeight: '800', letterSpacing: 0.5 },
-  matchBar: {
-    backgroundColor: BG, paddingVertical: 14, alignItems: 'center',
-    borderBottomWidth: 1, borderBottomColor: BORDER,
-  },
-  teamsText: { color: B, fontSize: 16, fontWeight: '900', letterSpacing: 0.5, textAlign: 'center' },
-  dateText: { color: MUTED, fontSize: 11, fontWeight: '600', marginTop: 2, textAlign: 'center', paddingHorizontal: 16 },
-  scrollContainer: { flex: 1, paddingHorizontal: 16, paddingTop: 20 },
-  timelineWrapper: { position: 'relative', width: '100%' },
-  verticalLine: {
-    position: 'absolute', left: 60, top: 10, bottom: 10,
-    width: 2, backgroundColor: BORDER,
-  },
-  quarterRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 16 },
-  quarterBadge: {
-    backgroundColor: B, paddingHorizontal: 10, paddingVertical: 4,
-    borderRadius: 6, minWidth: 85, alignItems: 'center', zIndex: 2,
-  },
-  quarterBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
-  quarterInfo: { marginLeft: 16 },
-  quarterScore: { color: B, fontSize: 13, fontWeight: '800' },
-  eventRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 10, paddingLeft: 4 },
-  timeWrapper: { width: 45, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginRight: 11 },
-  timeText: { color: MUTED, fontSize: 11, fontWeight: '700' },
-  dot: { width: 14, height: 14, borderRadius: 7, justifyContent: 'center', alignItems: 'center', zIndex: 2 },
-  dotHome: { backgroundColor: R },
-  dotAway: { backgroundColor: B },
-  innerDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFFFFF' },
-  eventCard: {
-    flex: 1, backgroundColor: BG, borderColor: BORDER,
-    borderWidth: 1, borderRadius: 12, padding: 12, marginLeft: 16,
-  },
-  eventCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  eventName: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5, flex: 1 },
-  textHome: { color: R },
-  textAway: { color: B },
-  pointsText: {
-    color: '#FFFFFF', fontSize: 12, fontWeight: '800',
-    backgroundColor: B, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
-  },
-  playerText: { color: B, fontSize: 13, fontWeight: '600', marginTop: 4 },
-  currentScoreText: { color: MUTED, fontSize: 11, fontWeight: '500', marginTop: 6 },
-  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  emptyText: { color: MUTED, fontSize: 14, textAlign: 'center' },
-  errorText: { color: R, fontSize: 14, textAlign: 'center', marginTop: 40, paddingHorizontal: 24 },
-});

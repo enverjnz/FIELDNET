@@ -1,16 +1,4 @@
 table_name,column_name,data_type,is_nullable,column_default
-XXXads,id,integer,NO,nextval('ads_idad_seq1'::regclass)
-XXXads,company,character varying,YES,null
-XXXads,ad_type,character varying,YES,null
-XXXapp_admins,id,integer,NO,nextval('app_admins_idapp_admin_seq1'::regclass)
-XXXarticles,id,integer,NO,nextval('articles_idarticle_seq1'::regclass)
-XXXchat_participants,id,integer,NO,nextval('chat_participants_idchat_participant_seq1'::regclass)
-XXXdm_chats,id,integer,NO,nextval('dm_chats_iddm_chat_seq1'::regclass)
-XXXgroup_chats,id,integer,NO,nextval('group_chats_idgroup_chat_seq1'::regclass)
-XXXlineup_players,id,integer,NO,nextval('lineup_players_idlineup_players_seq1'::regclass)
-XXXlineups,id,integer,NO,nextval('lineups_idlineup_seq1'::regclass)
-XXXvotings,id,integer,NO,nextval('votings_idvoting_seq1'::regclass)
-XXXvotings,status,character varying,YES,null
 clubs,id,uuid,NO,gen_random_uuid()
 clubs,name,character varying,NO,null
 clubs,created_at,timestamp with time zone,NO,"timezone('utc'::text, now())"
@@ -18,6 +6,10 @@ delete_profiles,id,bigint,NO,null
 delete_profiles,created_at,timestamp with time zone,NO,"timezone('utc'::text, now())"
 delete_profiles,reason,text,NO,null
 delete_profiles,feedback,text,YES,null
+followers,id,bigint,NO,null
+followers,created_at,timestamp with time zone,NO,"timezone('utc'::text, now())"
+followers,user_id,uuid,NO,null
+followers,team_id,uuid,NO,null
 games,id,integer,NO,nextval('games_idgame_seq'::regclass)
 games,status,character varying,YES,'SCHEDULED'::character varying
 games,home_score,integer,YES,0
@@ -30,6 +22,11 @@ games,location,text,YES,null
 games,is_home_game,boolean,YES,true
 games,game_code,text,YES,null
 games,created_by,uuid,YES,null
+league_teams,id,bigint,NO,null
+league_teams,team_id,uuid,NO,null
+league_teams,league_id,uuid,NO,null
+league_teams,season_id,bigint,NO,null
+league_teams,created_at,timestamp with time zone,NO,"timezone('utc'::text, now())"
 leagues,id,uuid,NO,gen_random_uuid()
 leagues,name,text,NO,null
 leagues,created_at,timestamp with time zone,NO,"timezone('utc'::text, now())"
@@ -37,6 +34,19 @@ leagues,league_logo_url,text,YES,null
 leagues,region_id,integer,YES,null
 leagues,division,character varying,NO,'Herren'::character varying
 leagues,season_id,bigint,YES,null
+post_comments,id,uuid,NO,gen_random_uuid()
+post_comments,post_id,uuid,NO,null
+post_comments,user_id,uuid,NO,null
+post_comments,content,text,NO,null
+post_comments,created_at,timestamp with time zone,NO,now()
+posts,id,uuid,NO,gen_random_uuid()
+posts,created_at,timestamp with time zone,NO,"timezone('utc'::text, now())"
+posts,team_id,uuid,NO,null
+posts,author_id,uuid,YES,null
+posts,title,character varying,NO,null
+posts,content,text,NO,null
+posts,image_url,text,YES,null
+posts,category,character varying,NO,'News'::character varying
 profile_stats,id,bigint,NO,null
 profile_stats,profile_id,uuid,NO,null
 profile_stats,seasons_played,integer,NO,1
@@ -89,16 +99,10 @@ team_memberships,id,uuid,NO,gen_random_uuid()
 team_memberships,player_id,uuid,NO,null
 team_memberships,team_id,uuid,NO,null
 team_memberships,status,text,NO,'pending'::text
-team_memberships,created_at,timestamp with time zone,NO,"timezone('utc'::text, now())"
-team_stats,id,bigint,NO,null
-team_stats,team_id,uuid,NO,null
-team_stats,seasons_played,integer,NO,1
-team_stats,games_played,integer,NO,0
-team_stats,wins,integer,NO,0
-team_stats,losses,integer,NO,0
-team_stats,ties,integer,NO,0
-team_stats,points_for,integer,NO,0
-team_stats,points_against,integer,NO,0
+
+
+
+
 
 --Policies
 Schema,Tabelle,Policy Name,Typ,Rollen,Operation,USING (Check für bestehende Zeilen),WITH CHECK (Check für neue Zeilen)
