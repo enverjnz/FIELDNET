@@ -12,7 +12,7 @@ import {
   Image,
   RefreshControl,
 } from 'react-native';
-import { Send } from 'lucide-react-native';
+import { Send, HatGlasses } from 'lucide-react-native';
 import {
   joinLeagueConversation,
   fetchMessages,
@@ -24,6 +24,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../context/ThemeContext';
 import { createLeagueForumStyles } from '../theme/chatStyles';
+import ForumUserPreviewSheet from './ForumUserPreviewSheet';
 
 function formatPostTime(iso) {
   if (!iso) return '';
@@ -41,11 +42,20 @@ function formatPostTime(iso) {
   });
 }
 
+function AnonymousAvatar({ styles, size = 34 }) {
+  return (
+    <View style={[styles.postAvatarPlaceholder, styles.anonAvatar, size !== 34 && { width: size, height: size, borderRadius: size / 2 }]}>
+      <HatGlasses size={Math.round(size * 0.45)} color="#FFFFFF" />
+    </View>
+  );
+}
+
 export default function LeagueForum({
   leagueId,
   leagueName,
   bottomInset = 100,
   onUnreadChange,
+  onOpenProfile,
 }) {
   const { colors } = useTheme();
   const styles = useMemo(() => createLeagueForumStyles(colors), [colors]);
@@ -56,7 +66,9 @@ export default function LeagueForum({
   const [refreshing, setRefreshing] = useState(false);
   const [sending, setSending] = useState(false);
   const [draft, setDraft] = useState('');
+  const [anonymousMode, setAnonymousMode] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [previewUser, setPreviewUser] = useState(null);
   const listRef = useRef(null);
   const onUnreadChangeRef = useRef(onUnreadChange);
   onUnreadChangeRef.current = onUnreadChange;
@@ -124,7 +136,7 @@ export default function LeagueForum({
     if (!draft.trim() || sending || !conversationId) return;
     setSending(true);
     try {
-      const msg = await sendMessage(conversationId, draft);
+      const msg = await sendMessage(conversationId, draft, { isAnonymous: anonymousMode });
       setPosts((prev) => {
         if (prev.some((p) => p.id === msg.id)) return prev;
         return [msg, ...prev];
@@ -138,24 +150,90 @@ export default function LeagueForum({
     }
   };
 
+  const openUserPreview = async (item) => {
+    if (!item?.sender_id || item.is_anonymous || !item.sender) return;
+
+    const base = {
+      id: item.sender_id,
+      first_name: item.sender?.first_name ?? null,
+      last_name: item.sender?.last_name ?? null,
+      avatar: item.sender?.avatar ?? null,
+      position: null,
+      roleLabel: null,
+    };
+    setPreviewUser(base);
+
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, avatar, position, role')
+        .eq('id', item.sender_id)
+        .maybeSingle();
+
+      if (!data) {
+        setPreviewUser(null);
+        return;
+      }
+      const roleLabel =
+        data.role === 'fan' ? 'Fan'
+          : data.role === 'coach' ? 'Coach'
+            : data.role === 'player' ? 'Spieler'
+              : null;
+
+      setPreviewUser({
+        id: item.sender_id,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        avatar: data.avatar,
+        position: data.position,
+        roleLabel,
+      });
+    } catch {
+      // keep base preview
+    }
+  };
+
   const renderPost = ({ item }) => {
+    const isAnonymous = !!item.is_anonymous;
+    const isUnknown = !isAnonymous && !item.sender;
+    const canOpenProfile = !isAnonymous && !isUnknown && !!item.sender_id;
     const isMine = item.sender_id === currentUserId;
-    const name = formatChatName(item.sender);
+    const name = isAnonymous ? 'Anonymer User' : formatChatName(item.sender);
     const initial = name.slice(0, 1).toUpperCase();
 
+    const avatarNode = isAnonymous ? (
+      <AnonymousAvatar styles={styles} />
+    ) : item.sender?.avatar ? (
+      <Image source={{ uri: item.sender.avatar }} style={styles.postAvatar} />
+    ) : (
+      <View style={[styles.postAvatarPlaceholder, isUnknown && styles.anonAvatar]}>
+        <Text style={styles.postAvatarText}>{initial}</Text>
+      </View>
+    );
+
     return (
-      <View style={[styles.postCard, isMine && styles.postCardMine]}>
+      <View style={[styles.postCard, isMine && canOpenProfile && styles.postCardMine]}>
         <View style={styles.postHeader}>
-          {item.sender?.avatar ? (
-            <Image source={{ uri: item.sender.avatar }} style={styles.postAvatar} />
+          {canOpenProfile ? (
+            <TouchableOpacity
+              onPress={() => openUserPreview(item)}
+              activeOpacity={0.75}
+              hitSlop={6}
+            >
+              {avatarNode}
+            </TouchableOpacity>
           ) : (
-            <View style={styles.postAvatarPlaceholder}>
-              <Text style={styles.postAvatarText}>{initial}</Text>
-            </View>
+            avatarNode
           )}
           <View style={styles.postMeta}>
-            <Text style={styles.postAuthor} numberOfLines={1}>
-              {isMine ? 'Du' : name}
+            <Text
+              style={[
+                styles.postAuthor,
+                (isAnonymous || isUnknown) && styles.postAuthorAnon,
+              ]}
+              numberOfLines={1}
+            >
+              {isAnonymous ? 'Anonymer User' : (isMine && canOpenProfile ? 'Du' : name)}
             </Text>
             <Text style={styles.postTime}>{formatPostTime(item.created_at)}</Text>
           </View>
@@ -223,11 +301,19 @@ export default function LeagueForum({
           style={styles.input}
           value={draft}
           onChangeText={setDraft}
-          placeholder="Beitrag posten…"
+          placeholder={anonymousMode ? 'Anonym posten…' : 'Beitrag posten…'}
           placeholderTextColor={colors.textMuted}
           multiline
           maxLength={2000}
         />
+        <TouchableOpacity
+          style={[styles.anonBtn, anonymousMode && styles.anonBtnActive]}
+          onPress={() => setAnonymousMode((v) => !v)}
+          activeOpacity={0.85}
+          accessibilityLabel="Anonym posten"
+        >
+          <HatGlasses size={18} color={anonymousMode ? '#FFFFFF' : colors.textMuted} />
+        </TouchableOpacity>
         <TouchableOpacity
           style={[styles.sendBtn, (!draft.trim() || sending) && styles.sendBtnDisabled]}
           onPress={handlePost}
@@ -240,6 +326,16 @@ export default function LeagueForum({
           }
         </TouchableOpacity>
       </View>
+
+      <ForumUserPreviewSheet
+        visible={!!previewUser}
+        user={previewUser}
+        onClose={() => setPreviewUser(null)}
+        onOpenProfile={(profileId) => {
+          setPreviewUser(null);
+          onOpenProfile?.(profileId);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }

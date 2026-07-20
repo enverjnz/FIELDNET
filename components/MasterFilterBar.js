@@ -16,15 +16,25 @@ function createStyles(c) {
       backgroundColor: c.surface,
     },
     wrapCompact: { paddingTop: 8, paddingBottom: 6 },
-    row: { gap: 8 },
-    rowCompact: { flexDirection: 'row', gap: 6 },
-    summary: {
+    wrapMenu: {
+      paddingHorizontal: 16,
+      paddingTop: 4,
+      paddingBottom: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+      backgroundColor: c.surface,
+      marginBottom: 4,
+    },
+    menuTitle: {
       color: c.textMuted,
       fontSize: 11,
-      fontWeight: '700',
-      letterSpacing: 0.4,
-      marginTop: 8,
+      fontWeight: '800',
+      letterSpacing: 1.2,
+      marginBottom: 12,
     },
+    row: { gap: 8 },
+    rowCompact: { flexDirection: 'row', gap: 6 },
+    rowMenu: { gap: 14 },
     loadingWrap: {
       paddingVertical: 14,
       alignItems: 'center',
@@ -56,7 +66,7 @@ function createStyles(c) {
   });
 }
 
-export default function MasterFilterBar({ compact = false }) {
+export default function MasterFilterBar({ compact = false, menu = false }) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -75,9 +85,6 @@ export default function MasterFilterBar({ compact = false }) {
     leaguesLoading,
     catalogLoading,
     hydrated,
-    selectedSeason,
-    selectedRegion,
-    selectedLeague,
   } = useFilter();
 
   if (!hydrated && catalogLoading) {
@@ -104,9 +111,20 @@ export default function MasterFilterBar({ compact = false }) {
     label: l.name,
   }));
 
+  const large = menu;
+
   return (
-    <View style={[styles.wrap, compact && styles.wrapCompact]}>
-      <View style={[styles.row, compact && styles.rowCompact]}>
+    <View style={[
+      styles.wrap,
+      compact && styles.wrapCompact,
+      menu && styles.wrapMenu,
+    ]}>
+      {menu ? <Text style={styles.menuTitle}>MASTER FILTER</Text> : null}
+      <View style={[
+        styles.row,
+        compact && styles.rowCompact,
+        menu && styles.rowMenu,
+      ]}>
         <FilterDropdown
           label="SAISON"
           placeholder="Saison…"
@@ -116,6 +134,7 @@ export default function MasterFilterBar({ compact = false }) {
           loading={seasonsLoading}
           emptyText="Keine Saisons gefunden."
           compact={compact}
+          large={large}
         />
         <FilterDropdown
           label="VERBAND"
@@ -126,6 +145,7 @@ export default function MasterFilterBar({ compact = false }) {
           loading={regionsLoading}
           emptyText="Keine Regionen gefunden."
           compact={compact}
+          large={large}
         />
         <FilterDropdown
           label="LIGA"
@@ -137,17 +157,9 @@ export default function MasterFilterBar({ compact = false }) {
           disabled={!selectedRegionId}
           emptyText="Keine Ligen in dieser Region."
           compact={compact}
+          large={large}
         />
       </View>
-      {(selectedSeason || selectedRegion || selectedLeague) ? (
-        <Text style={styles.summary} numberOfLines={1}>
-          {[
-            selectedSeason?.year_label,
-            selectedRegion?.country_unit || selectedRegion?.name,
-            selectedLeague?.name,
-          ].filter(Boolean).join(' · ')}
-        </Text>
-      ) : null}
     </View>
   );
 }

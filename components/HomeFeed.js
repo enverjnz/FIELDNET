@@ -80,6 +80,22 @@ function createStyles(c) {
     },
     emptyPostsText: { color: c.textMuted, fontSize: 13, fontWeight: '600', textAlign: 'center' },
     postsWrap: { paddingHorizontal: 16, marginBottom: 8 },
+    endOfFeed: {
+      alignItems: 'center',
+      paddingVertical: 28,
+      paddingHorizontal: 24,
+    },
+    endDots: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    endDot: {
+      width: 5,
+      height: 5,
+      borderRadius: 2.5,
+      backgroundColor: c.border,
+    },
   });
 }
 
@@ -153,7 +169,7 @@ export default function HomeFeed({ onOpenTimeline }) {
     <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
       {games.length > 0 ? (
         <>
-          <Text style={styles.sectionTitle}>🏈 LETZTE ERGEBNISSE</Text>
+          <Text style={styles.sectionTitle}>LETZTE ERGEBNISSE</Text>
           <View style={styles.gamesWrap}>
             {games.map((game) => {
               const homeName = game.teams?.short_name || game.teams?.name || 'Heim';
@@ -193,7 +209,7 @@ export default function HomeFeed({ onOpenTimeline }) {
         </>
       ) : null}
 
-      <Text style={styles.sectionTitle}>📰 AKTUELLE BEITRÄGE</Text>
+      <Text style={styles.sectionTitle}>AKTUELLE BEITRÄGE</Text>
       {posts.length === 0 ? (
         <View style={styles.emptyPosts}>
           <Text style={styles.emptyPostsText}>
@@ -207,6 +223,14 @@ export default function HomeFeed({ onOpenTimeline }) {
           ))}
         </View>
       )}
+
+      <View style={styles.endOfFeed}>
+        <View style={styles.endDots}>
+          <View style={styles.endDot} />
+          <View style={styles.endDot} />
+          <View style={styles.endDot} />
+        </View>
+      </View>
 
       <View style={{ height: 140 }} />
     </ScrollView>

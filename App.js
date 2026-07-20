@@ -58,6 +58,9 @@ export default function App() {
   const [showTeamDashboard, setShowTeamDashboard] = useState(false);
   const [dashboardTeamId, setDashboardTeamId]     = useState(null);
   const [userRole, setUserRole]                   = useState(null);
+  const [headerAvatarUrl, setHeaderAvatarUrl]     = useState(null);
+  const [headerInitials, setHeaderInitials]       = useState('?');
+  const [headerAvatarKey, setHeaderAvatarKey]     = useState(0);
   const [authState, setAuthState]                 = useState('landing');
   const [authReady, setAuthReady]                 = useState(false);
   const [showSettings, setShowSettings]           = useState(false);
@@ -79,6 +82,14 @@ export default function App() {
   const [hasUnreadChat, setHasUnreadChat] = useState(false);
 
   const bumpProfileRefresh = () => setProfileRefreshKey((k) => k + 1);
+
+  const applyHeaderProfile = useCallback((profile) => {
+    const rawAvatar = profile?.avatar?.trim() || null;
+    setHeaderAvatarUrl(rawAvatar);
+    setHeaderAvatarKey((k) => k + 1);
+    const initials = `${profile?.first_name?.[0] ?? ''}${profile?.last_name?.[0] ?? ''}`.toUpperCase() || '?';
+    setHeaderInitials(initials);
+  }, []);
 
   const openChatConversation = (conversationId) => {
     if (!conversationId) return;
@@ -133,12 +144,21 @@ export default function App() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setUserRole(null);
+        setHeaderAvatarUrl(null);
+        setHeaderInitials('?');
         return;
       }
       const role = user.user_metadata?.role;
-      if (role) { setUserRole(role); return; }
-      const { data } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-      setUserRole(data?.role ?? null);
+      if (role) setUserRole(role);
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('role, avatar, first_name, last_name')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!role) setUserRole(data?.role ?? null);
+      applyHeaderProfile(data);
     };
 
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -152,12 +172,29 @@ export default function App() {
       } else if (event === 'SIGNED_OUT') {
         setAuthState('landing');
         setUserRole(null);
+        setHeaderAvatarUrl(null);
+        setHeaderInitials('?');
+        setHeaderAvatarKey(0);
         setHasUnreadChat(false);
       }
       loadRole();
     });
     return () => subscription.unsubscribe();
-  }, []);
+  }, [applyHeaderProfile]);
+
+  useEffect(() => {
+    if (authState !== 'app') return;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('avatar, first_name, last_name')
+        .eq('id', user.id)
+        .maybeSingle();
+      applyHeaderProfile(data);
+    })();
+  }, [authState, profileRefreshKey, activeTab, applyHeaderProfile]);
 
   const refreshUnreadChat = useCallback(async () => {
     try {
@@ -373,11 +410,6 @@ export default function App() {
     }
   };
 
-  const showMasterFilter =
-    !selectedGame
-    && (activeTab === 0 || activeTab === 1 || activeTab === 2)
-    && !(activeTab === 2 && dmChatOpen);
-
   const renderHomeTab = () => (
     <HomeFeed onOpenTimeline={(game) => setSelectedGame(game)} />
   );
@@ -405,7 +437,16 @@ export default function App() {
           />
         );
       case 4:
-        return <ProfilScreen key={profilResetKey} refreshKey={profileRefreshKey} />;
+        return (
+          <ProfilScreen
+            key={profilResetKey}
+            refreshKey={profileRefreshKey}
+            onProfileSaved={(profile) => {
+              applyHeaderProfile(profile);
+              bumpProfileRefresh();
+            }}
+          />
+        );
       default:
         return null;
     }
@@ -451,21 +492,43 @@ export default function App() {
       
       {/* TOP BAR (HEADER) */}
       <View style={styles.header}>
-        <View style={styles.logoContainer}>
+        <View style={styles.headerSide}>
+          <TouchableOpacity
+            style={[
+              styles.headerAvatarBtn,
+              activeTab === 4 && styles.headerAvatarBtnActive,
+            ]}
+            onPress={() => goToTab(4)}
+            activeOpacity={0.8}
+          >
+            {headerAvatarUrl ? (
+              <Image
+                key={`header-avatar-${headerAvatarKey}`}
+                source={{
+                  uri: headerAvatarUrl.includes('?')
+                    ? `${headerAvatarUrl}&v=${headerAvatarKey}`
+                    : `${headerAvatarUrl}?v=${headerAvatarKey}`,
+                }}
+                style={styles.headerAvatar}
+              />
+            ) : (
+              <View style={styles.headerAvatarPlaceholder}>
+                <Text style={styles.headerAvatarInitials}>{headerInitials}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.headerCenter} pointerEvents="none">
           <Image
             source={require('./assets/fieldnet_logo.png')}
             style={styles.logoImage}
             resizeMode="contain"
           />
-          
-          <View>
-            <Text style={styles.logoText}>FIELDNET<Text style={styles.logoGreen}> </Text></Text>
-            <Text style={styles.subtitle}>TRACKER / COMMUNITY</Text>
-          </View>
         </View>
-        
-        <View style={styles.headerActions}>
-          <TouchableOpacity 
+
+        <View style={[styles.headerSide, styles.headerSideRight]}>
+          <TouchableOpacity
             style={styles.burgerButton}
             onPress={() => setIsMenuOpen(true)}
           >
@@ -494,8 +557,6 @@ export default function App() {
           <ChevronRight size={20} color="#FFFFFF" />
         </TouchableOpacity>
       )}
-
-      {showMasterFilter ? <MasterFilterBar compact /> : null}
 
       {/* DYNAMISCHER INHALT JE NACH AKTIVEM TAB ODER AUSGEWÄHLTEM SPIEL */}
       <View style={{ flex: 1, overflow: 'hidden' }}>
@@ -546,14 +607,6 @@ export default function App() {
             activeOpacity={0.75}
           >
             <Search size={22} color={activeTab === 3 ? '#FFFFFF' : colors.navInactive} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.navTabItem, activeTab === 4 && styles.navTabItemActive]}
-            onPress={() => goToTab(4)}
-            activeOpacity={0.75}
-          >
-            <User size={22} color={activeTab === 4 ? '#FFFFFF' : colors.navInactive} />
           </TouchableOpacity>
         </View>
       </View>
@@ -703,7 +756,13 @@ export default function App() {
             </View>
 
             {/* Menüpunkte im Seitenmenü */}
-            <ScrollView style={styles.drawerMenuScroll} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={styles.drawerMenuScroll}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <MasterFilterBar menu />
+
               {[
                 { label: 'Live-Ticker starten', icon: <PlusCircle size={20} color="#C01830" />, action: openTickerFlow },
                 userRole === 'coach' ? { label: 'Vereinsverwaltung', icon: <Trophy size={20} color={colors.text} />, action: handleVerwaltung } : null,

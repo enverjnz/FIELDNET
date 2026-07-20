@@ -15,6 +15,7 @@ export type ChatMessage = {
   sender_id: string;
   content: string;
   created_at: string;
+  is_anonymous?: boolean;
   sender?: ChatProfile | null;
 };
 
@@ -373,7 +374,7 @@ export async function fetchMessages(conversationId: string): Promise<ChatMessage
 
   const { data, error } = await supabase
     .from('messages')
-    .select('id, conversation_id, sender_id, content, created_at')
+    .select('id, conversation_id, sender_id, content, created_at, is_anonymous')
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true })
     .limit(200);
@@ -384,14 +385,21 @@ export async function fetchMessages(conversationId: string): Promise<ChatMessage
 
   return (data ?? []).map((msg) => ({
     ...msg,
+    is_anonymous: !!msg.is_anonymous,
     sender: profileMap.get(msg.sender_id) ?? null,
   })) as ChatMessage[];
 }
 
-export async function sendMessage(conversationId: string, content: string): Promise<ChatMessage> {
+export async function sendMessage(
+  conversationId: string,
+  content: string,
+  options?: { isAnonymous?: boolean },
+): Promise<ChatMessage> {
   const userId = await requireUserId();
   const trimmed = content.trim();
   if (!trimmed) throw new Error('Nachricht darf nicht leer sein.');
+
+  const isAnonymous = !!options?.isAnonymous;
 
   const { data, error } = await supabase
     .from('messages')
@@ -399,8 +407,9 @@ export async function sendMessage(conversationId: string, content: string): Prom
       conversation_id: conversationId,
       sender_id: userId,
       content: trimmed,
+      is_anonymous: isAnonymous,
     })
-    .select('id, conversation_id, sender_id, content, created_at')
+    .select('id, conversation_id, sender_id, content, created_at, is_anonymous')
     .single();
 
   if (error) throw error;
@@ -408,7 +417,8 @@ export async function sendMessage(conversationId: string, content: string): Prom
   const profileMap = await fetchProfilesMap([userId]);
   return {
     ...data,
-    sender: profileMap.get(userId) ?? null,
+    is_anonymous: !!data.is_anonymous,
+    sender: isAnonymous ? null : (profileMap.get(userId) ?? null),
   } as ChatMessage;
 }
 
@@ -531,10 +541,12 @@ export function subscribeToMessages(
       },
       async (payload) => {
         const row = payload.new as ChatMessage;
-        const profileMap = await fetchProfilesMap([row.sender_id]);
+        const isAnonymous = !!row.is_anonymous;
+        const profileMap = isAnonymous ? null : await fetchProfilesMap([row.sender_id]);
         onInsert({
           ...row,
-          sender: profileMap.get(row.sender_id) ?? null,
+          is_anonymous: isAnonymous,
+          sender: isAnonymous ? null : (profileMap?.get(row.sender_id) ?? null),
         });
       },
     )

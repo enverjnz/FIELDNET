@@ -101,7 +101,7 @@ function EditField({ label, value, onChangeText, placeholder, keyboardType, mult
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
-export default function ProfilScreen({ refreshKey = 0 }) {
+export default function ProfilScreen({ refreshKey = 0, onProfileSaved }) {
   const { colors, isDark } = useTheme();
   const styles = useMemo(() => createProfilStyles(colors), [colors]);
 
@@ -386,6 +386,11 @@ export default function ProfilScreen({ refreshKey = 0 }) {
 
       await fetchProfile();
       setIsEditing(false);
+      onProfileSaved?.({
+        avatar: avatarUrl,
+        first_name: draft.first_name.trim() || null,
+        last_name: draft.last_name.trim() || null,
+      });
     } catch (err) {
       const msg = err?.message ?? 'Unbekannter Fehler.';
       Alert.alert(

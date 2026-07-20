@@ -23,6 +23,11 @@ function createStyles(c) {
       letterSpacing: 0.8,
       marginBottom: 6,
     },
+    dropdownLabelLarge: {
+      fontSize: 11,
+      marginBottom: 8,
+      letterSpacing: 1,
+    },
     dropdownTrigger: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -41,11 +46,19 @@ function createStyles(c) {
       paddingHorizontal: 10,
       borderRadius: 10,
     },
+    dropdownTriggerLarge: {
+      minHeight: 56,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderRadius: 14,
+    },
     dropdownDisabled: { opacity: 0.55 },
     dropdownTriggerInner: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
     dropdownLogo: { width: 24, height: 24, borderRadius: 6 },
+    dropdownLogoLarge: { width: 28, height: 28, borderRadius: 8 },
     dropdownText: { flex: 1, color: c.text, fontSize: 14, fontWeight: '700' },
     dropdownTextCompact: { fontSize: 12, fontWeight: '700' },
+    dropdownTextLarge: { fontSize: 16, fontWeight: '700' },
     dropdownPlaceholder: { color: c.textMuted, fontWeight: '600' },
 
     modalOverlay: { flex: 1, justifyContent: 'flex-end' },
@@ -101,6 +114,7 @@ export default function FilterDropdown({
   disabled = false,
   emptyText = 'Keine Einträge verfügbar.',
   compact = false,
+  large = false,
 }) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -109,9 +123,16 @@ export default function FilterDropdown({
 
   return (
     <View style={[styles.dropdownWrap, compact && styles.dropdownWrapCompact]}>
-      {!compact ? <Text style={styles.dropdownLabel}>{label}</Text> : null}
+      {!compact ? (
+        <Text style={[styles.dropdownLabel, large && styles.dropdownLabelLarge]}>{label}</Text>
+      ) : null}
       <TouchableOpacity
-        style={[styles.dropdownTrigger, compact && styles.dropdownTriggerCompact, disabled && styles.dropdownDisabled]}
+        style={[
+          styles.dropdownTrigger,
+          compact && styles.dropdownTriggerCompact,
+          large && styles.dropdownTriggerLarge,
+          disabled && styles.dropdownDisabled,
+        ]}
         onPress={() => !disabled && !loading && setOpen(true)}
         activeOpacity={0.8}
         disabled={disabled || loading}
@@ -121,17 +142,26 @@ export default function FilterDropdown({
         ) : (
           <View style={styles.dropdownTriggerInner}>
             {selected?.imageUrl ? (
-              <Image source={{ uri: selected.imageUrl }} style={styles.dropdownLogo} resizeMode="contain" />
+              <Image
+                source={{ uri: selected.imageUrl }}
+                style={[styles.dropdownLogo, large && styles.dropdownLogoLarge]}
+                resizeMode="contain"
+              />
             ) : null}
             <Text
-              style={[styles.dropdownText, compact && styles.dropdownTextCompact, !selected && styles.dropdownPlaceholder]}
+              style={[
+                styles.dropdownText,
+                compact && styles.dropdownTextCompact,
+                large && styles.dropdownTextLarge,
+                !selected && styles.dropdownPlaceholder,
+              ]}
               numberOfLines={1}
             >
               {selected?.label ?? placeholder}
             </Text>
           </View>
         )}
-        <ChevronDown size={compact ? 16 : 18} color={disabled ? colors.border : colors.textMuted} />
+        <ChevronDown size={compact ? 16 : large ? 20 : 18} color={disabled ? colors.border : colors.textMuted} />
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>

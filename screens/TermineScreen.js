@@ -12,7 +12,7 @@ export default function TermineScreen() {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <Text style={styles.sectionTitle}>📅 ANSTEHENDE GAMEDAYS</Text>
+      <Text style={styles.sectionTitle}>ANSTEHENDE GAMEDAYS</Text>
 
       {games.map((game, index) => (
         <TouchableOpacity key={index} style={styles.gameCard} activeOpacity={0.8}>

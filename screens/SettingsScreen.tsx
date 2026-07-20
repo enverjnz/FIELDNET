@@ -85,30 +85,6 @@ function createStyles(c: ReturnType<typeof useTheme>['colors']) {
     },
     appearanceLabel: { color: c.text, fontSize: 15, fontWeight: '800' },
     appearanceSub: { color: c.textMuted, fontSize: 11, marginTop: 3, lineHeight: 16 },
-    themeOptions: {
-      flexDirection: 'row',
-      gap: 8,
-      paddingHorizontal: 16,
-      paddingBottom: 16,
-    },
-    themeOption: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 6,
-      paddingVertical: 12,
-      borderRadius: 12,
-      borderWidth: 1.5,
-      borderColor: c.border,
-      backgroundColor: c.surface,
-    },
-    themeOptionActive: {
-      backgroundColor: c.chipSelectedBg,
-      borderColor: c.chipSelectedBg,
-    },
-    themeOptionText: { color: c.text, fontSize: 13, fontWeight: '700' },
-    themeOptionTextActive: { color: '#FFFFFF' },
     teamRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -260,28 +236,6 @@ export default function SettingsScreen({ onBack, onDeleteAccount, onTeamLeft }: 
               trackColor={{ false: colors.border, true: colors.accent }}
               thumbColor="#FFFFFF"
             />
-          </View>
-          <View style={styles.themeOptions}>
-            <TouchableOpacity
-              style={[styles.themeOption, !isDark && styles.themeOptionActive]}
-              onPress={() => setMode('light')}
-              activeOpacity={0.85}
-            >
-              <Sun size={16} color={!isDark ? '#FFFFFF' : colors.text} />
-              <Text style={[styles.themeOptionText, !isDark && styles.themeOptionTextActive]}>
-                Hell
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.themeOption, isDark && styles.themeOptionActive]}
-              onPress={() => setMode('dark')}
-              activeOpacity={0.85}
-            >
-              <Moon size={16} color={isDark ? '#FFFFFF' : colors.text} />
-              <Text style={[styles.themeOptionText, isDark && styles.themeOptionTextActive]}>
-                Dunkel
-              </Text>
-            </TouchableOpacity>
           </View>
         </View>
 
