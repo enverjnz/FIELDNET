@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { useFilter } from '../context/FilterContext';
 import { useTheme } from '../context/ThemeContext';
@@ -16,6 +17,17 @@ import {
   formatGameResultDate,
 } from '../lib/leagueContent';
 import PostCard from './PostCard';
+
+function TeamGameLogo({ uri, label, styles }) {
+  if (uri) {
+    return <Image source={{ uri }} style={styles.gameTeamLogo} resizeMode="contain" />;
+  }
+  return (
+    <View style={styles.gameTeamLogoPlaceholder}>
+      <Text style={styles.gameTeamLogoText}>{(label ?? '?').slice(0, 1).toUpperCase()}</Text>
+    </View>
+  );
+}
 
 function createStyles(c) {
   return StyleSheet.create({
@@ -48,8 +60,22 @@ function createStyles(c) {
     },
     gameDate: { color: c.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 6 },
     gameMatchup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    gameTeam: { flex: 1, color: c.text, fontSize: 13, fontWeight: '800', textAlign: 'right' },
+    gameTeamRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
+    gameTeamRowHome: { justifyContent: 'flex-end' },
+    gameTeamRowAway: { justifyContent: 'flex-start' },
+    gameTeam: { color: c.text, fontSize: 13, fontWeight: '800', flexShrink: 1 },
+    gameTeamHome: { textAlign: 'right' },
     gameTeamAway: { textAlign: 'left' },
+    gameTeamLogo: { width: 36, height: 36, borderRadius: 8, backgroundColor: c.background },
+    gameTeamLogoPlaceholder: {
+      width: 36,
+      height: 36,
+      borderRadius: 8,
+      backgroundColor: c.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    gameTeamLogoText: { color: c.textMuted, fontSize: 14, fontWeight: '900' },
     gameScoreWrap: { alignItems: 'center', minWidth: 56 },
     gameScore: { color: c.text, fontSize: 16, fontWeight: '900' },
     liveBadge: {
@@ -180,7 +206,14 @@ export default function HomeFeed({ onOpenTimeline }) {
                 <View key={game.id} style={styles.gameCard}>
                   <Text style={styles.gameDate}>{formatGameResultDate(game.game_date)}</Text>
                   <View style={styles.gameMatchup}>
-                    <Text style={styles.gameTeam} numberOfLines={1}>{homeName}</Text>
+                    <View style={[styles.gameTeamRow, styles.gameTeamRowHome]}>
+                      <Text style={[styles.gameTeam, styles.gameTeamHome]} numberOfLines={1}>{homeName}</Text>
+                      <TeamGameLogo
+                        uri={game.teams?.avatar_teamlogo}
+                        label={homeName}
+                        styles={styles}
+                      />
+                    </View>
                     <View style={styles.gameScoreWrap}>
                       {isLive ? (
                         <View style={styles.liveBadge}>
@@ -191,7 +224,14 @@ export default function HomeFeed({ onOpenTimeline }) {
                         {game.home_score ?? 0}:{game.away_score ?? 0}
                       </Text>
                     </View>
-                    <Text style={[styles.gameTeam, styles.gameTeamAway]} numberOfLines={1}>{awayName}</Text>
+                    <View style={[styles.gameTeamRow, styles.gameTeamRowAway]}>
+                      <TeamGameLogo
+                        uri={game.away_team_logo}
+                        label={awayName}
+                        styles={styles}
+                      />
+                      <Text style={[styles.gameTeam, styles.gameTeamAway]} numberOfLines={1}>{awayName}</Text>
+                    </View>
                   </View>
                   {onOpenTimeline ? (
                     <TouchableOpacity

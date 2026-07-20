@@ -183,9 +183,10 @@ export default function ChatScreen({
 
   if (activeConversationId) {
     return (
-      <View style={[styles.container, { paddingBottom: BOTTOM_NAV_INSET, backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <ChatRoomScreen
           conversationId={activeConversationId}
+          bottomInset={BOTTOM_NAV_INSET}
           onRead={() => {
             setConversations((prev) =>
               prev.map((c) =>
@@ -203,6 +204,9 @@ export default function ChatScreen({
             );
             onUnreadChangeRef.current?.();
             load({ silent: true });
+          }}
+          onOpenProfile={(profileId) => {
+            setViewProfileId(profileId);
           }}
         />
       </View>
@@ -278,6 +282,7 @@ export default function ChatScreen({
               {directChats.map((dm) => {
                 const name = formatChatName(dm.other_user);
                 const unread = dm.unread_count ?? 0;
+                const otherId = dm.other_user?.id;
                 return (
                   <TouchableOpacity
                     key={dm.id}
@@ -285,10 +290,16 @@ export default function ChatScreen({
                     onPress={() => setActiveConversationId(dm.id)}
                     activeOpacity={0.75}
                   >
-                    <View style={styles.dmAvatarCircleWrap}>
+                    <TouchableOpacity
+                      style={styles.dmAvatarCircleWrap}
+                      onPress={() => otherId && setViewProfileId(otherId)}
+                      disabled={!otherId}
+                      activeOpacity={otherId ? 0.75 : 1}
+                      hitSlop={4}
+                    >
                       <Avatar uri={dm.other_user?.avatar} label={name} styles={styles} />
                       <UnreadBadge count={unread} styles={styles} />
-                    </View>
+                    </TouchableOpacity>
                     <View style={styles.dmRowInfo}>
                       <Text style={styles.dmRowName} numberOfLines={1}>{name}</Text>
                       {dm.last_message ? (

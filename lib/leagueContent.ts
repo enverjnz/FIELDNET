@@ -8,6 +8,7 @@ export type LeagueGameResult = {
   game_time: string | null;
   location: string | null;
   away_team_name: string | null;
+  away_team_logo: string | null;
   home_score: number | null;
   away_score: number | null;
   status: string | null;
@@ -17,6 +18,29 @@ export type LeagueGameResult = {
     avatar_teamlogo: string | null;
   } | null;
 };
+
+function buildTeamLogoLookup(
+  teams: { name: string; short_name: string | null; avatar_teamlogo: string | null }[],
+): Map<string, string | null> {
+  const map = new Map<string, string | null>();
+  for (const team of teams) {
+    const logo = team.avatar_teamlogo ?? null;
+    const nameKey = team.name?.trim().toLowerCase();
+    const shortKey = team.short_name?.trim().toLowerCase();
+    if (nameKey) map.set(nameKey, logo);
+    if (shortKey) map.set(shortKey, logo);
+  }
+  return map;
+}
+
+function resolveTeamLogo(
+  teamName: string | null | undefined,
+  lookup: Map<string, string | null>,
+): string | null {
+  const key = teamName?.trim().toLowerCase();
+  if (!key) return null;
+  return lookup.get(key) ?? null;
+}
 
 const POST_SELECT = `
   id,
@@ -68,23 +92,36 @@ export async function fetchLatestLeagueGames(
   const teamIds = await fetchLeagueTeamIds(leagueId, seasonId);
   if (teamIds.length === 0) return [];
 
-  const { data, error } = await supabase
-    .from('games')
-    .select(`
-      id, game_date, game_time, location,
-      away_team_name, home_score, away_score, status,
-      teams:home_team_id(name, short_name, avatar_teamlogo)
-    `)
-    .in('home_team_id', teamIds)
-    .or('status.eq.finished,status.eq.FINISHED,status.eq.live,status.eq.LIVE')
-    .order('game_date', { ascending: false })
-    .limit(limit);
+  const [{ data, error }, { data: leagueTeams, error: teamsError }] = await Promise.all([
+    supabase
+      .from('games')
+      .select(`
+        id, game_date, game_time, location,
+        away_team_name, home_score, away_score, status,
+        teams:home_team_id(name, short_name, avatar_teamlogo)
+      `)
+      .in('home_team_id', teamIds)
+      .or('status.eq.finished,status.eq.FINISHED,status.eq.live,status.eq.LIVE')
+      .order('game_date', { ascending: false })
+      .limit(limit),
+    supabase
+      .from('teams')
+      .select('name, short_name, avatar_teamlogo')
+      .in('id', teamIds),
+  ]);
 
   if (error) throw error;
+  if (teamsError) throw teamsError;
+
+  const logoLookup = buildTeamLogoLookup(leagueTeams ?? []);
 
   return (data ?? []).map((row) => {
     const teams = Array.isArray(row.teams) ? row.teams[0] : row.teams;
-    return { ...row, teams: teams ?? null } as LeagueGameResult;
+    return {
+      ...row,
+      teams: teams ?? null,
+      away_team_logo: resolveTeamLogo(row.away_team_name, logoLookup),
+    } as LeagueGameResult;
   });
 }
 

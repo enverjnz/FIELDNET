@@ -39,6 +39,10 @@ post_comments,post_id,uuid,NO,null
 post_comments,user_id,uuid,NO,null
 post_comments,content,text,NO,null
 post_comments,created_at,timestamp with time zone,NO,now()
+post_likes,id,uuid,NO,gen_random_uuid()
+post_likes,post_id,uuid,NO,null
+post_likes,user_id,uuid,NO,null
+post_likes,created_at,timestamp with time zone,NO,now()
 posts,id,uuid,NO,gen_random_uuid()
 posts,created_at,timestamp with time zone,NO,"timezone('utc'::text, now())"
 posts,team_id,uuid,NO,null

@@ -37,6 +37,9 @@ public,post_comments,Anyone can read post comments,PERMISSIVE,{public},SELECT,tr
 public,post_comments,Authenticated users can comment,PERMISSIVE,{authenticated},INSERT,null,(user_id = auth.uid())
 public,post_comments,Users can delete own comments,PERMISSIVE,{authenticated},DELETE,(user_id = auth.uid()),null
 public,post_comments,Users can update own comments,PERMISSIVE,{authenticated},UPDATE,(user_id = auth.uid()),(user_id = auth.uid())
+public,post_likes,Anyone can read post likes,PERMISSIVE,{public},SELECT,true,null
+public,post_likes,Authenticated users can like posts,PERMISSIVE,{authenticated},INSERT,null,(user_id = auth.uid())
+public,post_likes,Users can unlike own likes,PERMISSIVE,{authenticated},DELETE,(user_id = auth.uid()),null
 public,posts,Anyone can read posts,PERMISSIVE,{public},SELECT,true,null
 public,posts,Coach can create posts for own team,PERMISSIVE,{authenticated},INSERT,null,"((author_id = auth.uid()) AND (team_id IN ( SELECT team_managers.team_id
    FROM team_managers

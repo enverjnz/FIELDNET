@@ -73,8 +73,8 @@ export default function LeagueForum({
   const onUnreadChangeRef = useRef(onUnreadChange);
   onUnreadChangeRef.current = onUnreadChange;
 
-  const scrollToTop = useCallback(() => {
-    setTimeout(() => listRef.current?.scrollToOffset({ offset: 0, animated: true }), 80);
+  const scrollToEnd = useCallback(() => {
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
   }, []);
 
   const bootstrap = useCallback(async ({ showSpinner = true } = {}) => {
@@ -85,10 +85,10 @@ export default function LeagueForum({
       setConversationId(convId);
 
       const msgs = await fetchMessages(convId);
-      // Timeline: newest first
-      setPosts([...msgs].reverse());
+      setPosts(msgs);
       await markConversationRead(convId);
       onUnreadChangeRef.current?.();
+      scrollToEnd();
     } catch (e) {
       Alert.alert('Fehler', e?.message ?? 'Forum konnte nicht geladen werden.');
       setConversationId(null);
@@ -97,7 +97,7 @@ export default function LeagueForum({
       setLoading(false);
       setRefreshing(false);
     }
-  }, [leagueId]);
+  }, [leagueId, scrollToEnd]);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,14 +118,14 @@ export default function LeagueForum({
     const unsubscribe = subscribeToMessages(conversationId, (msg) => {
       setPosts((prev) => {
         if (prev.some((p) => p.id === msg.id)) return prev;
-        return [msg, ...prev];
+        return [...prev, msg];
       });
       markConversationRead(conversationId).then(() => onUnreadChangeRef.current?.());
-      scrollToTop();
+      scrollToEnd();
     });
 
     return unsubscribe;
-  }, [conversationId, scrollToTop]);
+  }, [conversationId, scrollToEnd]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -139,10 +139,10 @@ export default function LeagueForum({
       const msg = await sendMessage(conversationId, draft, { isAnonymous: anonymousMode });
       setPosts((prev) => {
         if (prev.some((p) => p.id === msg.id)) return prev;
-        return [msg, ...prev];
+        return [...prev, msg];
       });
       setDraft('');
-      scrollToTop();
+      scrollToEnd();
     } catch (e) {
       Alert.alert('Fehler', e?.message ?? 'Beitrag konnte nicht gepostet werden.');
     } finally {

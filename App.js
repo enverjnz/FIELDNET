@@ -80,14 +80,23 @@ export default function App() {
   const [pendingChatConversationId, setPendingChatConversationId] = useState(null);
   const [dmChatOpen, setDmChatOpen] = useState(false);
   const [hasUnreadChat, setHasUnreadChat] = useState(false);
+  const lastHeaderAvatarRef = useRef(null);
 
   const bumpProfileRefresh = () => setProfileRefreshKey((k) => k + 1);
 
-  const applyHeaderProfile = useCallback((profile) => {
+  const applyHeaderProfile = useCallback((profile, { bustCache = false } = {}) => {
     const rawAvatar = profile?.avatar?.trim() || null;
-    setHeaderAvatarUrl(rawAvatar);
-    setHeaderAvatarKey((k) => k + 1);
     const initials = `${profile?.first_name?.[0] ?? ''}${profile?.last_name?.[0] ?? ''}`.toUpperCase() || '?';
+    const avatarChanged = lastHeaderAvatarRef.current !== rawAvatar;
+
+    if (avatarChanged) {
+      lastHeaderAvatarRef.current = rawAvatar;
+    }
+    if (bustCache || avatarChanged) {
+      setHeaderAvatarKey((k) => k + 1);
+    }
+
+    setHeaderAvatarUrl(rawAvatar);
     setHeaderInitials(initials);
   }, []);
 
@@ -146,6 +155,7 @@ export default function App() {
         setUserRole(null);
         setHeaderAvatarUrl(null);
         setHeaderInitials('?');
+        lastHeaderAvatarRef.current = null;
         return;
       }
       const role = user.user_metadata?.role;
@@ -175,6 +185,7 @@ export default function App() {
         setHeaderAvatarUrl(null);
         setHeaderInitials('?');
         setHeaderAvatarKey(0);
+        lastHeaderAvatarRef.current = null;
         setHasUnreadChat(false);
       }
       loadRole();
@@ -194,7 +205,7 @@ export default function App() {
         .maybeSingle();
       applyHeaderProfile(data);
     })();
-  }, [authState, profileRefreshKey, activeTab, applyHeaderProfile]);
+  }, [authState, profileRefreshKey, applyHeaderProfile]);
 
   const refreshUnreadChat = useCallback(async () => {
     try {
@@ -442,7 +453,7 @@ export default function App() {
             key={profilResetKey}
             refreshKey={profileRefreshKey}
             onProfileSaved={(profile) => {
-              applyHeaderProfile(profile);
+              applyHeaderProfile(profile, { bustCache: true });
               bumpProfileRefresh();
             }}
           />
@@ -503,7 +514,6 @@ export default function App() {
           >
             {headerAvatarUrl ? (
               <Image
-                key={`header-avatar-${headerAvatarKey}`}
                 source={{
                   uri: headerAvatarUrl.includes('?')
                     ? `${headerAvatarUrl}&v=${headerAvatarKey}`

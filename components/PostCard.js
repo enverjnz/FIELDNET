@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, Image, TouchableOpacity, Share } from 'react-native';
+import { View, Text, Image, TouchableOpacity, Share, Alert } from 'react-native';
 import { Edit2, Heart, MessageCircle, Share2 } from 'lucide-react-native';
 import { formatPostDate } from '../lib/teamPosts';
 import { countCommentsForPost } from '../lib/postComments';
+import { fetchPostLikeSummary, togglePostLike } from '../lib/postLikes';
 import FullscreenImageModal from './FullscreenImageModal';
 import PostCommentsModal from './PostCommentsModal';
 import { useTheme } from '../context/ThemeContext';
@@ -27,6 +28,7 @@ export default function PostCard({ post, showTeamHeader = false, showActions = f
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
+  const [likeLoading, setLikeLoading] = useState(false);
   const [commentCount, setCommentCount] = useState(0);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const categoryStyle = categoryStyles[post.category] ?? categoryStyles.News;
@@ -43,9 +45,45 @@ export default function PostCard({ post, showTeamHeader = false, showActions = f
     return () => { cancelled = true; };
   }, [post?.id, showActions]);
 
-  const handleLike = () => {
-    setLikeCount((count) => (liked ? Math.max(0, count - 1) : count + 1));
-    setLiked((prev) => !prev);
+  useEffect(() => {
+    if (!showActions || !post?.id) return;
+    let cancelled = false;
+    fetchPostLikeSummary(post.id)
+      .then(({ count, liked: isLiked }) => {
+        if (!cancelled) {
+          setLikeCount(count);
+          setLiked(isLiked);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLikeCount(0);
+          setLiked(false);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [post?.id, showActions]);
+
+  const handleLike = async () => {
+    if (likeLoading || !post?.id) return;
+
+    const prevLiked = liked;
+    const prevCount = likeCount;
+    setLiked(!prevLiked);
+    setLikeCount(prevLiked ? Math.max(0, prevCount - 1) : prevCount + 1);
+    setLikeLoading(true);
+
+    try {
+      const summary = await togglePostLike(post.id);
+      setLikeCount(summary.count);
+      setLiked(summary.liked);
+    } catch (e) {
+      setLiked(prevLiked);
+      setLikeCount(prevCount);
+      Alert.alert('Fehler', e?.message ?? 'Like konnte nicht gespeichert werden.');
+    } finally {
+      setLikeLoading(false);
+    }
   };
 
   const handleComment = () => {
@@ -135,7 +173,12 @@ export default function PostCard({ post, showTeamHeader = false, showActions = f
         {wrapped}
         {showActions ? (
           <View style={styles.actionsRow}>
-            <TouchableOpacity style={styles.actionBtn} onPress={handleLike} activeOpacity={0.75}>
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={handleLike}
+              disabled={likeLoading}
+              activeOpacity={0.75}
+            >
               <Heart
                 size={18}
                 color={liked ? colors.accent : colors.textMuted}
