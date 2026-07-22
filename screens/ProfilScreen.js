@@ -7,15 +7,11 @@ import {
 import {
   User, Shield, Users, Ruler, Weight,
   Flag, Hash, Calendar, Pencil, Check, X, Camera,
-  Briefcase, Award, Clock, Target, Search, UserPlus, Trophy, ChevronRight, Star, Images,
+  Briefcase, Award, Clock, Target, Search, UserPlus, Trophy, ChevronRight, Images, Plus,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
-import { unfollowTeam } from '../lib/teamFollowers';
-import {
-  fetchFollowedProfiles,
-  unfollowProfile,
-} from '../lib/profileFollowers';
+import { fetchFollowedProfiles } from '../lib/profileFollowers';
 import {
   formatDisplayDate, parseBirthDate, ageFromBirthDate, birthDateProfileFields,
 } from '../lib/profileDates';
@@ -125,6 +121,7 @@ export default function ProfilScreen({ refreshKey = 0, onProfileSaved }) {
   const [profileTeamId, setProfileTeamId]     = useState(null);
   const [teamProfileId, setTeamProfileId]     = useState(null);
   const [viewedProfileId, setViewedProfileId] = useState(null);
+  const [showFollowedList, setShowFollowedList] = useState(false);
   const [fullscreenAvatar, setFullscreenAvatar] = useState(null);
   const [profileTab, setProfileTab]           = useState('info'); // 'info' | 'gallery'
   const searchRef = useRef(null);
@@ -263,33 +260,37 @@ export default function ProfilScreen({ refreshKey = 0, onProfileSaved }) {
     }
   };
 
-  const handleUnfollowTeam = async (team) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Nicht eingeloggt.');
-      await unfollowTeam(user.id, team.id);
-      fetchProfile();
-    } catch (err) {
-      Alert.alert('Fehler', err?.message ?? 'Unbekannter Fehler');
-    }
-  };
+  const FOLLOWED_PREVIEW_LIMIT = 4;
 
-  const handleUnfollowProfile = async (person) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Nicht eingeloggt.');
-      await unfollowProfile(user.id, person.id);
-      fetchProfile(true);
-    } catch (err) {
-      Alert.alert('Fehler', err?.message ?? 'Unbekannter Fehler');
-    }
-  };
+  const followedItems = useMemo(() => {
+    const labelForRole = (role) => {
+      if (role === 'fan') return 'Fan';
+      if (role === 'coach') return 'Coach';
+      return 'Spieler';
+    };
+    const teams = followedTeams.map((team) => ({
+      key: `team-${team.id}`,
+      type: 'team',
+      id: team.id,
+      name: team.name ?? 'Team',
+      avatar: team.avatar_teamlogo ?? null,
+      subtitle: [team.town, team.short_name].filter(Boolean).join(' · ') || 'Team',
+    }));
+    const people = followedProfiles.map((person) => {
+      const name = [person.first_name, person.last_name].filter(Boolean).join(' ') || 'Unbekannt';
+      return {
+        key: `user-${person.id}`,
+        type: 'profile',
+        id: person.id,
+        name,
+        avatar: person.avatar ?? null,
+        subtitle: [labelForRole(person.role), person.position].filter(Boolean).join(' · '),
+      };
+    });
+    return [...teams, ...people];
+  }, [followedTeams, followedProfiles]);
 
-  const roleLabel = (role) => {
-    if (role === 'fan') return 'Fan';
-    if (role === 'coach') return 'Coach';
-    return 'Spieler';
-  };
+  const followedPreview = followedItems.slice(0, FOLLOWED_PREVIEW_LIMIT);
 
   // ── Edit helpers ────────────────────────────────────────────────────────────
 
@@ -538,184 +539,216 @@ export default function ProfilScreen({ refreshKey = 0, onProfileSaved }) {
             </>
           ) : (
           <>
-          {/* TEAM / GEFOLGTE TEAMS */}
-          <View style={styles.sectionRow}>
-            <Text style={styles.sectionTitle}>
-              {profile.role === 'fan' ? 'GEFOLGTE TEAMS' : 'TEAM'}
-            </Text>
-            {profile.role === 'player' && memberships.length === 0 && (
-              <TouchableOpacity style={styles.joinBtn} onPress={openTeamSearch} activeOpacity={0.8}>
-                <UserPlus size={13} color={colors.accent} />
-                <Text style={styles.joinBtnText}>Team suchen</Text>
-              </TouchableOpacity>
-            )}
-            {profile.role === 'fan' && (
-              <TouchableOpacity style={styles.joinBtn} onPress={openTeamSearch} activeOpacity={0.8}>
-                <Star size={13} color={colors.accent} />
-                <Text style={styles.joinBtnText}>Team folgen</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          <View style={styles.card}>
-            {profile.role === 'coach' ? (
-              coachTeam ? (
-                <TouchableOpacity
-                  style={styles.teamRow}
-                  onPress={() => setTeamProfileId(coachTeam.id)}
-                  activeOpacity={0.75}
-                >
-                  {coachTeam.avatar_teamlogo
-                    ? <Image source={{ uri: coachTeam.avatar_teamlogo }} style={styles.teamLogo} resizeMode="contain" />
-                    : <View style={styles.teamLogoPlaceholder}><Trophy size={18} color={colors.text} /></View>
-                  }
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.teamName} numberOfLines={1}>{coachTeam.name}</Text>
-                    <Text style={styles.resultMeta}>
-                      {[coachTeam.town, coachTeam.short_name].filter(Boolean).join(' · ') || 'Coach-Team'}
-                    </Text>
-                  </View>
-                  <View style={styles.coachTeamBadge}>
-                    <Text style={styles.coachTeamBadgeText}>Coach</Text>
-                  </View>
-                  <ChevronRight size={18} color={colors.textMuted} />
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.emptyTeamBtn}>
-                  <View style={styles.emptyTeamIcon}>
-                    <Trophy size={22} color={colors.text} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.emptyTeamTitle}>Noch kein Team</Text>
-                    <Text style={styles.emptyTeamSub}>Lege dein Team über die Vereinsverwaltung an</Text>
-                  </View>
-                </View>
-              )
-            ) : profile.role === 'fan' ? (
-              followedTeams.length === 0 ? (
-                <TouchableOpacity style={styles.emptyTeamBtn} onPress={openTeamSearch} activeOpacity={0.8}>
-                  <View style={styles.emptyTeamIcon}>
-                    <Star size={22} color={colors.text} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.emptyTeamTitle}>Noch keine Teams</Text>
-                    <Text style={styles.emptyTeamSub}>Tippe hier, um Teams zu suchen und zu folgen</Text>
-                  </View>
-                  <Search size={16} color={colors.textMuted} />
-                </TouchableOpacity>
-              ) : (
-                followedTeams.map((team, i) => (
-                  <View
-                    key={team.id}
-                    style={[styles.teamRow, styles.teamRowWithAction, i > 0 && styles.teamRowBorder]}
-                  >
+          {/* TEAM */}
+          {profile.role !== 'fan' ? (
+            <>
+              <View style={styles.sectionRow}>
+                <Text style={styles.sectionTitle}>TEAM</Text>
+                {profile.role === 'player' && memberships.length === 0 && (
+                  <TouchableOpacity style={styles.joinBtn} onPress={openTeamSearch} activeOpacity={0.8}>
+                    <UserPlus size={13} color={colors.accent} />
+                    <Text style={styles.joinBtnText}>Team suchen</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <View style={styles.card}>
+                {profile.role === 'coach' ? (
+                  coachTeam ? (
                     <TouchableOpacity
-                      style={styles.teamRowMain}
-                      onPress={() => setTeamProfileId(team.id)}
+                      style={styles.teamRow}
+                      onPress={() => setTeamProfileId(coachTeam.id)}
                       activeOpacity={0.75}
                     >
-                      {team.avatar_teamlogo
-                        ? <Image source={{ uri: team.avatar_teamlogo }} style={styles.teamLogo} resizeMode="contain" />
-                        : <View style={styles.teamLogoPlaceholder}><Star size={18} color={colors.text} /></View>
+                      {coachTeam.avatar_teamlogo
+                        ? <Image source={{ uri: coachTeam.avatar_teamlogo }} style={styles.teamLogo} resizeMode="contain" />
+                        : <View style={styles.teamLogoPlaceholder}><Trophy size={18} color={colors.text} /></View>
                       }
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.teamName} numberOfLines={1}>{team.name}</Text>
+                        <Text style={styles.teamName} numberOfLines={1}>{coachTeam.name}</Text>
                         <Text style={styles.resultMeta}>
-                          {[team.town, team.short_name].filter(Boolean).join(' · ') || 'Team'}
+                          {[coachTeam.town, coachTeam.short_name].filter(Boolean).join(' · ') || 'Coach-Team'}
                         </Text>
                       </View>
-                      <View style={styles.followBadge}>
-                        <Text style={styles.followBadgeText}>Folge ich</Text>
+                      <View style={styles.coachTeamBadge}>
+                        <Text style={styles.coachTeamBadgeText}>Coach</Text>
                       </View>
                       <ChevronRight size={18} color={colors.textMuted} />
                     </TouchableOpacity>
+                  ) : (
+                    <View style={styles.emptyTeamBtn}>
+                      <View style={styles.emptyTeamIcon}>
+                        <Trophy size={22} color={colors.text} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.emptyTeamTitle}>Noch kein Team</Text>
+                        <Text style={styles.emptyTeamSub}>Lege dein Team über die Vereinsverwaltung an</Text>
+                      </View>
+                    </View>
+                  )
+                ) : memberships.length === 0 ? (
+                  <TouchableOpacity style={styles.emptyTeamBtn} onPress={openTeamSearch} activeOpacity={0.8}>
+                    <View style={styles.emptyTeamIcon}>
+                      <Trophy size={22} color={colors.text} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.emptyTeamTitle}>Noch kein Team</Text>
+                      <Text style={styles.emptyTeamSub}>Tippe hier, um ein Team zu suchen und beizutreten</Text>
+                    </View>
+                    <Search size={16} color={colors.textMuted} />
+                  </TouchableOpacity>
+                ) : (
+                  memberships.map((m, i) => (
                     <TouchableOpacity
-                      onPress={() => handleUnfollowTeam(team)}
-                      hitSlop={8}
-                      style={styles.unfollowBtn}
+                      key={i}
+                      style={[styles.teamRow, i > 0 && styles.teamRowBorder]}
+                      onPress={() => m.teams?.id && setTeamProfileId(m.teams.id)}
+                      activeOpacity={0.75}
                     >
-                      <X size={16} color={colors.textMuted} />
+                      {m.teams?.avatar_teamlogo
+                        ? <Image source={{ uri: m.teams.avatar_teamlogo }} style={styles.teamLogo} />
+                        : <View style={styles.teamLogoPlaceholder}><Users size={18} color={colors.text} /></View>
+                      }
+                      <Text style={styles.teamName} numberOfLines={1}>{m.teams?.name ?? '–'}</Text>
+                      <MembershipBadge status={m.status} styles={styles} isDark={isDark} />
+                      <ChevronRight size={18} color={colors.textMuted} />
                     </TouchableOpacity>
-                  </View>
-                ))
-              )
-            ) : memberships.length === 0 ? (
-              <TouchableOpacity style={styles.emptyTeamBtn} onPress={openTeamSearch} activeOpacity={0.8}>
+                  ))
+                )}
+              </View>
+            </>
+          ) : null}
+
+          {/* GEFOLGT */}
+          <Text style={styles.sectionTitle}>GEFOLGT</Text>
+          <View style={styles.card}>
+            {followedItems.length === 0 ? (
+              <View style={styles.emptyTeamBtn}>
                 <View style={styles.emptyTeamIcon}>
-                  <Trophy size={22} color={colors.text} />
+                  <Users size={22} color={colors.text} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.emptyTeamTitle}>Noch kein Team</Text>
-                  <Text style={styles.emptyTeamSub}>Tippe hier, um ein Team zu suchen und beizutreten</Text>
+                  <Text style={styles.emptyTeamTitle}>Noch niemandem gefolgt</Text>
+                  <Text style={styles.emptyTeamSub}>
+                    {profile.role === 'fan'
+                      ? 'Folge Teams und Nutzer, um sie hier zu sehen'
+                      : 'Folge Nutzer, um sie hier zu sehen'}
+                  </Text>
                 </View>
-                <Search size={16} color={colors.textMuted} />
-              </TouchableOpacity>
+              </View>
             ) : (
-              memberships.map((m, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={[styles.teamRow, i > 0 && styles.teamRowBorder]}
-                  onPress={() => m.teams?.id && setTeamProfileId(m.teams.id)}
-                  activeOpacity={0.75}
-                >
-                  {m.teams?.avatar_teamlogo
-                    ? <Image source={{ uri: m.teams.avatar_teamlogo }} style={styles.teamLogo} />
-                    : <View style={styles.teamLogoPlaceholder}><Users size={18} color={colors.text} /></View>
-                  }
-                  <Text style={styles.teamName} numberOfLines={1}>{m.teams?.name ?? '–'}</Text>
-                  <MembershipBadge status={m.status} styles={styles} isDark={isDark} />
-                  <ChevronRight size={18} color={colors.textMuted} />
-                </TouchableOpacity>
-              ))
+              <TouchableOpacity
+                style={styles.followedStackRow}
+                onPress={() => setShowFollowedList(true)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.followedStack}>
+                  {followedPreview.map((item, index) => {
+                    const initial = (item.name ?? '?').slice(0, 1).toUpperCase();
+                    return (
+                      <View
+                        key={item.key}
+                        style={[
+                          styles.followedAvatarWrap,
+                          index > 0 && styles.followedAvatarOverlap,
+                          { zIndex: followedPreview.length - index },
+                        ]}
+                      >
+                        {item.avatar ? (
+                          <Image
+                            source={{ uri: item.avatar }}
+                            style={styles.followedAvatar}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={styles.followedAvatarPlaceholder}>
+                            <Text style={styles.followedAvatarInitial}>{initial}</Text>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                  <View
+                    style={[
+                      styles.followedPlus,
+                      followedPreview.length > 0 && styles.followedAvatarOverlap,
+                      { zIndex: followedPreview.length + 1 },
+                    ]}
+                  >
+                    <Plus size={18} color={colors.text} />
+                  </View>
+                </View>
+                {followedItems.length > FOLLOWED_PREVIEW_LIMIT ? (
+                  <Text style={styles.followedCount}>
+                    +{followedItems.length - FOLLOWED_PREVIEW_LIMIT}
+                  </Text>
+                ) : null}
+              </TouchableOpacity>
             )}
           </View>
 
-          {followedProfiles.length > 0 && (
-            <>
-              <Text style={styles.sectionTitle}>GEFOLGTE NUTZER</Text>
-              <View style={styles.card}>
-                {followedProfiles.map((person, i) => {
-                  const name = [person.first_name, person.last_name].filter(Boolean).join(' ') || 'Unbekannt';
-                  return (
-                    <View
-                      key={person.id}
-                      style={[styles.teamRow, styles.teamRowWithAction, i > 0 && styles.teamRowBorder]}
-                    >
+          <Modal
+            visible={showFollowedList}
+            animationType="slide"
+            presentationStyle="pageSheet"
+            onRequestClose={() => setShowFollowedList(false)}
+          >
+            <View style={{ flex: 1, backgroundColor: colors.background }}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Gefolgt</Text>
+                <TouchableOpacity onPress={() => setShowFollowedList(false)} hitSlop={8}>
+                  <X size={22} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView contentContainerStyle={styles.modalResults} showsVerticalScrollIndicator={false}>
+                {followedItems.length === 0 ? (
+                  <View style={styles.modalEmpty}>
+                    <Text style={styles.modalEmptyText}>Noch niemandem gefolgt</Text>
+                  </View>
+                ) : (
+                  <View style={styles.card}>
+                    {followedItems.map((item, i) => (
                       <TouchableOpacity
-                        style={styles.teamRowMain}
-                        onPress={() => setViewedProfileId(person.id)}
+                        key={item.key}
+                        style={[styles.teamRow, i > 0 && styles.teamRowBorder]}
+                        onPress={() => {
+                          setShowFollowedList(false);
+                          if (item.type === 'team') setTeamProfileId(item.id);
+                          else setViewedProfileId(item.id);
+                        }}
                         activeOpacity={0.75}
                       >
-                        {person.avatar
-                          ? <Image source={{ uri: person.avatar }} style={styles.teamLogo} />
-                          : (
-                            <View style={styles.teamLogoPlaceholder}>
-                              <User size={18} color={colors.text} />
-                            </View>
-                          )}
+                        {item.avatar ? (
+                          <Image
+                            source={{ uri: item.avatar }}
+                            style={styles.followedListAvatar}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={styles.followedListAvatarPlaceholder}>
+                            <Text style={styles.followedAvatarInitial}>
+                              {(item.name ?? '?').slice(0, 1).toUpperCase()}
+                            </Text>
+                          </View>
+                        )}
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.teamName} numberOfLines={1}>{name}</Text>
-                          <Text style={styles.resultMeta}>
-                            {[roleLabel(person.role), person.position].filter(Boolean).join(' · ')}
-                          </Text>
+                          <Text style={styles.teamName} numberOfLines={1}>{item.name}</Text>
+                          {item.subtitle ? (
+                            <Text style={styles.resultMeta}>{item.subtitle}</Text>
+                          ) : null}
                         </View>
                         <View style={styles.followBadge}>
-                          <Text style={styles.followBadgeText}>Folge ich</Text>
+                          <Text style={styles.followBadgeText}>
+                            {item.type === 'team' ? 'Team' : 'Nutzer'}
+                          </Text>
                         </View>
                         <ChevronRight size={18} color={colors.textMuted} />
                       </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => handleUnfollowProfile(person)}
-                        hitSlop={8}
-                        style={styles.unfollowBtn}
-                      >
-                        <X size={16} color={colors.textMuted} />
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-              </View>
-            </>
-          )}
+                    ))}
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          </Modal>
 
           {/* TEAM SEARCH MODAL */}
           <Modal

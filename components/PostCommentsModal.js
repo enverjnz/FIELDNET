@@ -13,10 +13,13 @@ import {
   Alert,
   Image,
 } from 'react-native';
-import { X, Send } from 'lucide-react-native';
+import { X, Send, Check } from 'lucide-react-native';
+import { supabase } from '../lib/supabase';
 import {
   fetchCommentsForPost,
   createPostComment,
+  updatePostComment,
+  deletePostComment,
   formatCommentAuthor,
   formatCommentDate,
 } from '../lib/postComments';
@@ -44,6 +47,8 @@ export default function PostCommentsModal({ visible, post, onClose, onCountChang
   const [submitting, setSubmitting] = useState(false);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [editingCommentId, setEditingCommentId] = useState(null);
 
   const loadComments = useCallback(async () => {
     if (!post?.id) return;
@@ -62,28 +67,109 @@ export default function PostCommentsModal({ visible, post, onClose, onCountChang
   }, [post?.id, onCountChange]);
 
   useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!cancelled) setCurrentUserId(user?.id ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [visible]);
+
+  useEffect(() => {
     if (visible && post?.id) {
       setDraft('');
+      setEditingCommentId(null);
       loadComments();
     }
   }, [visible, post?.id, loadComments]);
+
+  const cancelEdit = () => {
+    setEditingCommentId(null);
+    setDraft('');
+  };
 
   const handleSubmit = async () => {
     if (!post?.id || !draft.trim()) return;
     setSubmitting(true);
     try {
-      const created = await createPostComment(post.id, draft);
-      setComments((prev) => {
-        const next = [...prev, created];
-        onCountChange?.(next.length);
-        return next;
-      });
-      setDraft('');
+      if (editingCommentId) {
+        const updated = await updatePostComment(editingCommentId, draft);
+        setComments((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+        setEditingCommentId(null);
+        setDraft('');
+      } else {
+        const created = await createPostComment(post.id, draft);
+        setComments((prev) => {
+          const next = [...prev, created];
+          onCountChange?.(next.length);
+          return next;
+        });
+        setDraft('');
+      }
     } catch (e) {
-      Alert.alert('Fehler', e?.message ?? 'Kommentar konnte nicht gesendet werden.');
+      Alert.alert(
+        'Fehler',
+        e?.message ?? (editingCommentId
+          ? 'Kommentar konnte nicht gespeichert werden.'
+          : 'Kommentar konnte nicht gesendet werden.'),
+      );
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const startEdit = (comment) => {
+    setEditingCommentId(comment.id);
+    setDraft(comment.content ?? '');
+  };
+
+  const confirmDelete = (comment) => {
+    Alert.alert(
+      'Kommentar löschen?',
+      'Dieser Kommentar wird endgültig gelöscht.',
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Löschen',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deletePostComment(comment.id);
+              setComments((prev) => {
+                const next = prev.filter((c) => c.id !== comment.id);
+                onCountChange?.(next.length);
+                return next;
+              });
+              if (editingCommentId === comment.id) cancelEdit();
+            } catch (e) {
+              Alert.alert('Fehler', e?.message ?? 'Kommentar konnte nicht gelöscht werden.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleLongPress = (comment) => {
+    if (!currentUserId || comment.user_id !== currentUserId) return;
+
+    Alert.alert(
+      'Dein Kommentar',
+      'Was möchtest du tun?',
+      [
+        {
+          text: 'Bearbeiten',
+          onPress: () => startEdit(comment),
+        },
+        {
+          text: 'Löschen',
+          style: 'destructive',
+          onPress: () => confirmDelete(comment),
+        },
+        { text: 'Abbrechen', style: 'cancel' },
+      ],
+    );
   };
 
   return (
@@ -123,6 +209,7 @@ export default function PostCommentsModal({ visible, post, onClose, onCountChang
             data={comments}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
+            keyboardShouldPersistTaps="handled"
             ListEmptyComponent={
               <View style={styles.emptyWrap}>
                 <Text style={styles.emptyText}>Noch keine Kommentare. Sei der Erste!</Text>
@@ -130,28 +217,50 @@ export default function PostCommentsModal({ visible, post, onClose, onCountChang
             }
             renderItem={({ item }) => {
               const author = formatCommentAuthor(item);
+              const isMine = !!currentUserId && item.user_id === currentUserId;
+              const isEditing = editingCommentId === item.id;
               return (
-                <View style={styles.commentRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.commentRow,
+                    isEditing && styles.commentRowEditing,
+                  ]}
+                  onLongPress={() => handleLongPress(item)}
+                  delayLongPress={350}
+                  activeOpacity={isMine ? 0.7 : 1}
+                  disabled={!isMine}
+                >
                   <CommentAvatar uri={item.profiles?.avatar} label={author} />
                   <View style={styles.commentBody}>
                     <View style={styles.commentMeta}>
-                      <Text style={styles.commentAuthor}>{author}</Text>
+                      <Text style={styles.commentAuthor}>
+                        {isMine ? 'Du' : author}
+                      </Text>
                       <Text style={styles.commentDate}>{formatCommentDate(item.created_at)}</Text>
                     </View>
                     <Text style={styles.commentContent}>{item.content}</Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             }}
           />
         )}
+
+        {editingCommentId ? (
+          <View style={styles.editBanner}>
+            <Text style={styles.editBannerText}>Kommentar bearbeiten</Text>
+            <TouchableOpacity onPress={cancelEdit} hitSlop={8}>
+              <Text style={styles.editBannerCancel}>Abbrechen</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         <View style={styles.inputRow}>
           <TextInput
             style={styles.input}
             value={draft}
             onChangeText={setDraft}
-            placeholder="Kommentar schreiben…"
+            placeholder={editingCommentId ? 'Kommentar ändern…' : 'Kommentar schreiben…'}
             placeholderTextColor="#9CA3AF"
             multiline
             maxLength={500}
@@ -164,7 +273,9 @@ export default function PostCommentsModal({ visible, post, onClose, onCountChang
           >
             {submitting
               ? <ActivityIndicator size="small" color="#FFFFFF" />
-              : <Send size={18} color="#FFFFFF" />
+              : editingCommentId
+                ? <Check size={18} color="#FFFFFF" />
+                : <Send size={18} color="#FFFFFF" />
             }
           </TouchableOpacity>
         </View>
@@ -200,6 +311,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginBottom: 16,
+    borderRadius: 12,
+    padding: 4,
+    marginHorizontal: -4,
+  },
+  commentRowEditing: {
+    backgroundColor: BG,
   },
   avatar: { width: 36, height: 36, borderRadius: 10 },
   avatarPlaceholder: {
@@ -222,6 +339,18 @@ const styles = StyleSheet.create({
   commentAuthor: { color: B, fontSize: 13, fontWeight: '800', flex: 1 },
   commentDate: { color: MUTED, fontSize: 10, fontWeight: '600' },
   commentContent: { color: B, fontSize: 14, lineHeight: 20, fontWeight: '500' },
+  editBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: BG,
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+  },
+  editBannerText: { color: B, fontSize: 12, fontWeight: '800' },
+  editBannerCancel: { color: R, fontSize: 12, fontWeight: '800' },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',

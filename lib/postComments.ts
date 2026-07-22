@@ -101,6 +101,40 @@ export async function createPostComment(postId: string, content: string): Promis
   return withProfile;
 }
 
+export async function updatePostComment(commentId: string, content: string): Promise<PostComment> {
+  const trimmed = content.trim();
+  if (!trimmed) throw new Error('Bitte gib einen Kommentar ein.');
+
+  const { data: { user }, error: authErr } = await supabase.auth.getUser();
+  if (authErr || !user) throw new Error('Bitte melde dich an.');
+
+  const { data, error } = await supabase
+    .from('post_comments')
+    .update({ content: trimmed })
+    .eq('id', commentId)
+    .eq('user_id', user.id)
+    .select(COMMENT_SELECT)
+    .single();
+
+  if (error) throw error;
+
+  const [withProfile] = await attachProfiles([data as Omit<PostComment, 'profiles'>]);
+  return withProfile;
+}
+
+export async function deletePostComment(commentId: string): Promise<void> {
+  const { data: { user }, error: authErr } = await supabase.auth.getUser();
+  if (authErr || !user) throw new Error('Bitte melde dich an.');
+
+  const { error } = await supabase
+    .from('post_comments')
+    .delete()
+    .eq('id', commentId)
+    .eq('user_id', user.id);
+
+  if (error) throw error;
+}
+
 export function formatCommentAuthor(comment: PostComment): string {
   const p = comment.profiles;
   const name = [p?.first_name, p?.last_name].filter(Boolean).join(' ').trim();

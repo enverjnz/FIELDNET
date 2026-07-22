@@ -7,10 +7,11 @@ import {
   SafeAreaView,
   StatusBar,
   Image,
+  ImageBackground,
 } from 'react-native';
 
 const DARK_BLUE = '#1A2F6E';
-const RED       = '#C01830';
+const RED = '#C01830';
 
 type Props = {
   onLogin: () => void;
@@ -19,90 +20,104 @@ type Props = {
 
 export default function LandingScreen({ onLogin, onRegister }: Props) {
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+    <ImageBackground
+      source={require('../../assets/bg_01.jpg')}
+      style={styles.background}
+      resizeMode="cover"
+    >
+      <View style={styles.overlay} />
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      {/* LOGO */}
-      <View style={styles.logoSection}>
-        <Image
-          source={require('../../assets/fieldnet_logo.png')}
-          style={styles.logoImage}
-          resizeMode="contain"
-        />
-      </View>
+        {/* LOGO */}
+        <View style={styles.logoSection}>
+          <Image
+            source={require('../../assets/fieldnet_logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
+        </View>
 
-      {/* HERO */}
-      <View style={styles.heroSection}>
-        <Text style={styles.heroTitle}>
-          Willkommen bei{'\n'}
-          {'FIELDNET'}<Text style={styles.heroRed}>.DE</Text>
+        {/* HERO */}
+        <View style={styles.heroSection}>
+          <Text style={styles.heroTitle}>
+            Willkommen bei{'\n'}
+            {'FIELDNET'}<Text style={styles.heroRed}>.DE</Text>
+          </Text>
+          <Text style={styles.heroSubtitle}>
+            Verfolge Ligen, Spielergebnisse und dein Team – alles an einem Ort.
+          </Text>
+
+          <View style={styles.divider} />
+
+          <View style={styles.featureRow}>
+            <View style={styles.featureDot} />
+            <Text style={styles.featureText}>Live-Ticker & Spielergebnisse</Text>
+          </View>
+          <View style={styles.featureRow}>
+            <View style={styles.featureDot} />
+            <Text style={styles.featureText}>Team- & Spielerprofile</Text>
+          </View>
+          <View style={styles.featureRow}>
+            <View style={styles.featureDot} />
+            <Text style={styles.featureText}>Community & Chats</Text>
+          </View>
+        </View>
+
+        {/* BUTTONS */}
+        <View style={styles.actions}>
+          <TouchableOpacity style={styles.btnPrimary} onPress={onRegister} activeOpacity={0.85}>
+            <Text style={styles.btnPrimaryText}>Jetzt registrieren</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.btnSecondary} onPress={onLogin} activeOpacity={0.85}>
+            <Text style={styles.btnSecondaryText}>Bereits ein Konto? Einloggen</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.legal}>
+          Mit der Registrierung stimmst du unseren Nutzungsbedingungen und der Datenschutzerklärung zu.
         </Text>
-        <Text style={styles.heroSubtitle}>
-          Verfolge Ligen, Spielergebnisse und dein Team – alles an einem Ort.
-        </Text>
-
-        {/* DIVIDER */}
-        <View style={styles.divider} />
-
-        <View style={styles.featureRow}>
-          <View style={styles.featureDot} />
-          <Text style={styles.featureText}>Live-Ticker & Spielergebnisse</Text>
-        </View>
-        <View style={styles.featureRow}>
-          <View style={styles.featureDot} />
-          <Text style={styles.featureText}>Team- & Spielerprofile</Text>
-        </View>
-        <View style={styles.featureRow}>
-          <View style={styles.featureDot} />
-          <Text style={styles.featureText}>Community & Chats</Text>
-        </View>
-      </View>
-
-      {/* BUTTONS */}
-      <View style={styles.actions}>
-        <TouchableOpacity style={styles.btnPrimary} onPress={onRegister} activeOpacity={0.85}>
-          <Text style={styles.btnPrimaryText}>Jetzt registrieren</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.btnSecondary} onPress={onLogin} activeOpacity={0.85}>
-          <Text style={styles.btnSecondaryText}>Bereits ein Konto? Einloggen</Text>
-        </TouchableOpacity>
-      </View>
-
-      <Text style={styles.legal}>
-        Mit der Registrierung stimmst du unseren Nutzungsbedingungen und der Datenschutzerklärung zu.
-      </Text>
-    </SafeAreaView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
+const CONTENT_INDENT = 40;
+const BUTTON_SIDE_INSET = 48;
+
 const styles = StyleSheet.create({
+  background: {
+    flex: 1,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+  },
   safe: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 28,
     justifyContent: 'space-between',
     paddingBottom: 32,
   },
 
-  // Logo
   logoSection: {
     alignItems: 'center',
     paddingTop: 32,
   },
   logoImage: {
-    width: 260,
-    height: 200,
+    width: 220,
+    height: 170,
   },
 
-  // Hero
   heroSection: {
     flex: 1,
     justifyContent: 'center',
     paddingTop: 8,
+    paddingLeft: CONTENT_INDENT,
+    paddingRight: 28,
   },
   heroTitle: {
-    color: DARK_BLUE,
+    color: '#FFFFFF',
     fontSize: 32,
     fontWeight: '900',
     lineHeight: 40,
@@ -110,7 +125,7 @@ const styles = StyleSheet.create({
   },
   heroRed: { color: RED },
   heroSubtitle: {
-    color: '#4A5568',
+    color: 'rgba(255, 255, 255, 0.85)',
     fontSize: 15,
     lineHeight: 22,
     fontWeight: '500',
@@ -118,7 +133,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     marginBottom: 20,
   },
   featureRow: {
@@ -134,52 +149,52 @@ const styles = StyleSheet.create({
     backgroundColor: RED,
   },
   featureText: {
-    color: DARK_BLUE,
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
   },
 
-  // Buttons
   actions: {
-    gap: 12,
+    gap: 10,
     marginBottom: 20,
+    marginHorizontal: BUTTON_SIDE_INSET,
   },
   btnPrimary: {
     backgroundColor: RED,
-    borderRadius: 16,
-    paddingVertical: 18,
+    borderRadius: 14,
+    paddingVertical: 13,
     alignItems: 'center',
-    shadowColor: RED,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
     elevation: 4,
   },
   btnPrimaryText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '900',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
   btnSecondary: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingVertical: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 14,
+    paddingVertical: 13,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: DARK_BLUE,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.7)',
   },
   btnSecondaryText: {
-    color: DARK_BLUE,
-    fontSize: 15,
+    color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '700',
   },
 
-  // Legal
   legal: {
-    color: '#9CA3AF',
+    color: 'rgba(255, 255, 255, 0.55)',
     fontSize: 11,
-    textAlign: 'center',
     lineHeight: 16,
+    paddingLeft: CONTENT_INDENT,
+    paddingRight: 28,
   },
 });

@@ -119,6 +119,74 @@ export function createProfilStyles(c) {
       alignItems: 'center', justifyContent: 'center',
     },
 
+    followedStackRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      gap: 10,
+    },
+    followedStack: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    followedAvatarWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      borderWidth: 2,
+      borderColor: c.card,
+      overflow: 'hidden',
+      backgroundColor: iconBg,
+    },
+    followedAvatarOverlap: {
+      marginLeft: -12,
+    },
+    followedAvatar: {
+      width: '100%',
+      height: '100%',
+    },
+    followedAvatarPlaceholder: {
+      width: '100%',
+      height: '100%',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDark ? '#3B5080' : '#1A2F6E',
+    },
+    followedAvatarInitial: {
+      color: '#FFFFFF',
+      fontSize: 15,
+      fontWeight: '900',
+    },
+    followedPlus: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      borderWidth: 2,
+      borderColor: c.card,
+      backgroundColor: iconBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    followedCount: {
+      color: c.textMuted,
+      fontSize: 13,
+      fontWeight: '800',
+    },
+    followedListAvatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+    },
+    followedListAvatarPlaceholder: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: isDark ? '#3B5080' : '#1A2F6E',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
     badge: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
     badgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.4 },
 
