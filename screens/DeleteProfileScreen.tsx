@@ -13,7 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { X } from 'lucide-react-native';
+import { Eye, EyeOff, X } from 'lucide-react-native';
 import { deleteAccount } from '../lib/deleteAccount';
 
 const B = '#1A2F6E';
@@ -60,6 +60,9 @@ function RadioOption({
 export default function DeleteProfileScreen({ onBack, onDeleted }: Props) {
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
   const [feedback, setFeedback] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const confirmDelete = () => {
@@ -67,6 +70,13 @@ export default function DeleteProfileScreen({ onBack, onDeleted }: Props) {
       Alert.alert('Grund fehlt', 'Bitte wähle einen Grund für die Löschung aus.');
       return;
     }
+
+    if (!password.trim()) {
+      setPasswordError('Passwort ist Pflicht.');
+      return;
+    }
+
+    setPasswordError(null);
 
     Alert.alert(
       'Bist du sicher?',
@@ -83,11 +93,11 @@ export default function DeleteProfileScreen({ onBack, onDeleted }: Props) {
   };
 
   const handleDelete = async () => {
-    if (!selectedReason) return;
+    if (!selectedReason || !password.trim()) return;
 
     setDeleting(true);
     try {
-      const { error } = await deleteAccount(selectedReason, feedback);
+      const { error } = await deleteAccount(selectedReason, password, feedback);
       if (error) throw new Error(error);
       onDeleted();
     } catch (err: unknown) {
@@ -154,6 +164,41 @@ export default function DeleteProfileScreen({ onBack, onDeleted }: Props) {
             textAlignVertical="top"
             editable={!deleting}
           />
+
+          <Text style={styles.sectionTitle}>PASSWORT BESTÄTIGEN</Text>
+          <Text style={styles.passwordHint}>
+            Gib dein Passwort ein, um die Löschung zu bestätigen.
+          </Text>
+          <View style={[styles.passwordWrap, !!passwordError && styles.passwordWrapError]}>
+            <TextInput
+              style={styles.passwordInput}
+              value={password}
+              onChangeText={(value) => {
+                setPassword(value);
+                if (passwordError) setPasswordError(null);
+              }}
+              placeholder="Dein Passwort"
+              placeholderTextColor="#9CA3AF"
+              secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              autoComplete="password"
+              textContentType="password"
+              editable={!deleting}
+            />
+            <TouchableOpacity
+              onPress={() => setShowPassword((v) => !v)}
+              hitSlop={8}
+              activeOpacity={0.7}
+              disabled={deleting}
+            >
+              {showPassword ? (
+                <EyeOff size={20} color={MUTED} />
+              ) : (
+                <Eye size={20} color={MUTED} />
+              )}
+            </TouchableOpacity>
+          </View>
+          {!!passwordError && <Text style={styles.passwordErrorText}>{passwordError}</Text>}
 
           <TouchableOpacity
             style={[styles.deleteBtn, deleting && styles.deleteBtnDisabled]}
@@ -244,13 +289,45 @@ const styles = StyleSheet.create({
     color: B,
     fontSize: 14,
     minHeight: 110,
-    marginBottom: 32,
+    marginBottom: 24,
+  },
+  passwordHint: {
+    color: MUTED,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 10,
+  },
+  passwordWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: BG,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+  },
+  passwordWrapError: {
+    borderColor: R,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingVertical: 14,
+    color: B,
+    fontSize: 14,
+  },
+  passwordErrorText: {
+    color: R,
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 24,
   },
   deleteBtn: {
     backgroundColor: R,
     borderRadius: 16,
     paddingVertical: 18,
     alignItems: 'center',
+    marginTop: 16,
     shadowColor: R,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,

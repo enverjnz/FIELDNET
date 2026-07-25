@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Image,
+  RefreshControl,
 } from 'react-native';
 import { useFilter } from '../context/FilterContext';
 import { useTheme } from '../context/ThemeContext';
@@ -125,7 +126,7 @@ function createStyles(c) {
   });
 }
 
-export default function HomeFeed({ onOpenTimeline }) {
+export default function HomeFeed({ onOpenTimeline, onPullRefresh }) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -139,60 +140,95 @@ export default function HomeFeed({ onOpenTimeline }) {
   const [posts, setPosts] = useState([]);
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
+  const loadContent = useCallback(async ({ silent = false } = {}) => {
     if (!isFilterReady || !selectedLeagueId || !selectedSeasonId) {
       setPosts([]);
       setGames([]);
-      return undefined;
+      return;
     }
 
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const [postList, gameList] = await Promise.all([
-          fetchLatestPostsForLeague(selectedLeagueId, selectedSeasonId, 15),
-          fetchLatestLeagueGames(selectedLeagueId, selectedSeasonId, 5),
-        ]);
-        if (!cancelled) {
-          setPosts(postList);
-          setGames(gameList);
-        }
-      } catch (e) {
-        if (!cancelled) {
-          console.warn('HomeFeed:', e?.message);
-          setPosts([]);
-          setGames([]);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => { cancelled = true; };
+    if (!silent) setLoading(true);
+    try {
+      const [postList, gameList] = await Promise.all([
+        fetchLatestPostsForLeague(selectedLeagueId, selectedSeasonId, 15),
+        fetchLatestLeagueGames(selectedLeagueId, selectedSeasonId, 5),
+      ]);
+      setPosts(postList);
+      setGames(gameList);
+    } catch (e) {
+      console.warn('HomeFeed:', e?.message);
+      setPosts([]);
+      setGames([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, [selectedLeagueId, selectedSeasonId, isFilterReady]);
+
+  useEffect(() => {
+    loadContent();
+  }, [loadContent]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await onPullRefresh?.();
+    } catch (e) {
+      console.warn('HomeFeed pull refresh:', e?.message);
+    }
+    await loadContent({ silent: true });
+  }, [loadContent, onPullRefresh]);
+
+  const refreshControl = (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      tintColor={colors.text}
+      colors={[colors.text]}
+    />
+  );
+
+  const scrollContentStyle = { flexGrow: 1 };
 
   if (!isFilterReady && !catalogLoading) {
     return (
-      <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        style={styles.scroll}
+        contentContainerStyle={scrollContentStyle}
+        refreshControl={refreshControl}
+      >
         <FilterEmptyPrompt />
         <View style={{ height: 140 }} />
       </ScrollView>
     );
   }
 
-  if (loading || catalogLoading) {
+  if ((loading || catalogLoading) && !refreshing) {
     return (
-      <View style={styles.loadingWrap}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Lade Liga-Inhalte…</Text>
-      </View>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        style={styles.scroll}
+        contentContainerStyle={scrollContentStyle}
+        refreshControl={refreshControl}
+      >
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Lade Liga-Inhalte…</Text>
+        </View>
+      </ScrollView>
     );
   }
 
   return (
-    <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      style={styles.scroll}
+      contentContainerStyle={scrollContentStyle}
+      refreshControl={refreshControl}
+    >
       {games.length > 0 ? (
         <>
           <Text style={styles.sectionTitle}>LETZTE ERGEBNISSE</Text>

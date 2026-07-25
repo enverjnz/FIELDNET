@@ -68,6 +68,11 @@ export async function getOrCreateDirectConversation(otherUserId: string): Promis
     throw new Error('Du kannst dir nicht selbst schreiben.');
   }
 
+  const { isBlockBetweenUsers } = await import('./profileBlocks');
+  if (await isBlockBetweenUsers(userId, otherUserId)) {
+    throw new Error('Nachrichten sind mit diesem Nutzer nicht möglich.');
+  }
+
   const { data: myMemberships } = await supabase
     .from('conversation_members')
     .select('conversation_id')

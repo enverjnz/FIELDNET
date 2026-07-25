@@ -39,6 +39,7 @@ export default function ProfileGallery({
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(null);
   const [viewer, setViewer] = useState(null);
 
   const load = useCallback(async () => {
@@ -70,26 +71,53 @@ export default function ProfileGallery({
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.8,
+      allowsMultipleSelection: true,
+      selectionLimit: 0,
     });
 
-    if (result.canceled || !result.assets?.[0]?.uri) return;
+    if (result.canceled || !result.assets?.length) return;
 
-    const asset = result.assets[0];
+    const assets = result.assets.filter((asset) => asset.uri);
+    if (assets.length === 0) return;
 
     setUploading(true);
+    setUploadProgress({ current: 0, total: assets.length });
+
+    const uploaded = [];
+    let lastError = null;
+
     try {
-      const created = await addProfileMedia(profileId, asset.uri, 'image');
-      setItems((prev) => [created, ...prev]);
-    } catch (err) {
-      const msg = err?.message ?? 'Upload fehlgeschlagen.';
-      Alert.alert(
-        'Upload fehlgeschlagen',
-        msg.includes('row-level security') || msg.includes('Bucket not found')
-          ? 'Galerie nicht eingerichtet. Bitte sql/profile_media.sql in Supabase ausführen und den Bucket „profile_media“ anlegen.'
-          : msg,
-      );
+      for (let i = 0; i < assets.length; i += 1) {
+        setUploadProgress({ current: i + 1, total: assets.length });
+        try {
+          const created = await addProfileMedia(profileId, assets[i].uri, 'image');
+          uploaded.push(created);
+        } catch (err) {
+          lastError = err;
+        }
+      }
+
+      if (uploaded.length > 0) {
+        setItems((prev) => [...uploaded, ...prev]);
+      }
+
+      if (uploaded.length === 0) {
+        const msg = lastError?.message ?? 'Upload fehlgeschlagen.';
+        Alert.alert(
+          'Upload fehlgeschlagen',
+          msg.includes('row-level security') || msg.includes('Bucket not found')
+            ? 'Galerie nicht eingerichtet. Bitte sql/profile_media.sql in Supabase ausführen und den Bucket „profile_media“ anlegen.'
+            : msg,
+        );
+      } else if (uploaded.length < assets.length) {
+        Alert.alert(
+          'Teilweise hochgeladen',
+          `${uploaded.length} von ${assets.length} Bildern wurden hochgeladen.`,
+        );
+      }
     } finally {
       setUploading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -146,7 +174,14 @@ export default function ProfileGallery({
           activeOpacity={0.85}
         >
           {uploading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
+            <>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Text style={styles.uploadBtnText}>
+                {uploadProgress
+                  ? `Hochladen ${uploadProgress.current}/${uploadProgress.total}…`
+                  : 'Hochladen…'}
+              </Text>
+            </>
           ) : (
             <>
               <ImagePlus size={18} color="#FFFFFF" />

@@ -100,10 +100,7 @@ function createStyles(c) {
     suggestionName:     { color: c.text, fontSize: 14, fontWeight: '700' },
     suggestionMeta:     { color: c.textMuted, fontSize: 11, fontWeight: '500', marginTop: 1 },
     typeBadge:          { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
-    badgeTeam:          { backgroundColor: iconTeamBg },
-    badgePlayer:        { backgroundColor: iconPlayerBg },
-    badgeTeamText:      { color: c.text, fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
-    badgePlayerText:    { color: c.accent, fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
+    badgeTeamText:      { fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
 
     scrollContainer:    { flex: 1, paddingTop: 16 },
     sectionTitle:       { color: c.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginLeft: 16, marginBottom: 12 },
@@ -355,6 +352,43 @@ export default function SucheScreen({ onOpenChat }) {
     return 'SPIELER';
   };
 
+  const getRoleBadgeStyles = (item) => {
+    const isDark = colors.mode === 'dark';
+
+    if (item.type === 'team') {
+      return {
+        badge: { backgroundColor: isDark ? '#243049' : '#E8EDF8' },
+        text: { color: isDark ? '#93B4FF' : '#1A2F6E' },
+      };
+    }
+
+    if (item.type === 'league') {
+      return {
+        badge: { backgroundColor: isDark ? '#2A3654' : '#F0F4FF' },
+        text: { color: colors.textMuted },
+      };
+    }
+
+    if (item.role === 'fan') {
+      return {
+        badge: { backgroundColor: isDark ? '#1A3A2A' : '#ECFDF5' },
+        text: { color: isDark ? '#6EE7B7' : '#059669' },
+      };
+    }
+
+    if (item.role === 'coach') {
+      return {
+        badge: { backgroundColor: isDark ? '#3A3020' : '#FFFBEB' },
+        text: { color: isDark ? '#FCD34D' : '#B45309' },
+      };
+    }
+
+    return {
+      badge: { backgroundColor: isDark ? '#3A2430' : '#FFF0F2' },
+      text: { color: colors.accent },
+    };
+  };
+
   if (viewTeamId) {
     return (
       <TeamProfileScreen
@@ -418,7 +452,9 @@ export default function SucheScreen({ onOpenChat }) {
                 <Text style={styles.dropdownHint}>Keine Ergebnisse gefunden</Text>
               </View>
             ) : (
-              suggestions.map((item, index) => (
+              suggestions.map((item, index) => {
+                const badgeStyles = getRoleBadgeStyles(item);
+                return (
                 <TouchableOpacity
                   key={item.id}
                   style={[
@@ -444,18 +480,14 @@ export default function SucheScreen({ onOpenChat }) {
                     )}
                   </View>
 
-                  <View style={[
-                    styles.typeBadge,
-                    item.type === 'player' ? styles.badgePlayer : styles.badgeTeam,
-                  ]}>
-                    <Text style={
-                      item.type === 'player' ? styles.badgePlayerText : styles.badgeTeamText
-                    }>
+                  <View style={[styles.typeBadge, badgeStyles.badge]}>
+                    <Text style={[styles.badgeTeamText, badgeStyles.text]}>
                       {renderBadgeLabel(item)}
                     </Text>
                   </View>
                 </TouchableOpacity>
-              ))
+                );
+              })
             )}
           </View>
         )}

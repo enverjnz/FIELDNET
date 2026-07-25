@@ -26,6 +26,7 @@ import {
   Images,
   UserPlus,
   UserMinus,
+  Ban,
 } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { getOrCreateDirectConversation } from '../lib/chat';
@@ -34,8 +35,14 @@ import {
   unfollowProfile,
   isUserFollowingProfile,
 } from '../lib/profileFollowers';
+import {
+  isProfileBlocked,
+  blockProfile,
+  unblockProfile,
+} from '../lib/profileBlocks';
 import FullscreenImageModal from '../components/FullscreenImageModal';
 import ProfileGallery from '../components/ProfileGallery';
+import ReportContentModal from '../components/ReportContentModal';
 
 const B = '#1A2F6E';
 const R = '#C01830';
@@ -74,6 +81,9 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
   const [profileTab, setProfileTab] = useState('info'); // 'info' | 'gallery'
+  const [showReport, setShowReport] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockBusy, setBlockBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,11 +113,17 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
       ]);
 
       let following = false;
+      let blocked = false;
       if (uid && uid !== profileId) {
         try {
           following = await isUserFollowingProfile(uid, profileId);
         } catch (e) {
           console.warn('PlayerProfile follow state:', e?.message);
+        }
+        try {
+          blocked = await isProfileBlocked(uid, profileId);
+        } catch (e) {
+          console.warn('PlayerProfile block state:', e?.message);
         }
       }
 
@@ -116,6 +132,7 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
         setTeams((memberships ?? []).map((m) => m.teams).filter(Boolean));
         setPlayerStats(stats ?? null);
         setIsFollowing(following);
+        setIsBlocked(blocked);
         setLoading(false);
       }
     })();
@@ -158,6 +175,13 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
   const canInteract = currentUserId && currentUserId !== profileId;
 
   const handleMessage = async () => {
+    if (isBlocked) {
+      Alert.alert(
+        'Blockiert',
+        'Du hast dieses Profil blockiert. Entblocke es, um Nachrichten zu senden.',
+      );
+      return;
+    }
     setMessageLoading(true);
     try {
       const conversationId = await getOrCreateDirectConversation(profileId);
@@ -170,7 +194,7 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
   };
 
   const toggleFollow = async () => {
-    if (!canInteract || followBusy) return;
+    if (!canInteract || followBusy || isBlocked) return;
     setFollowBusy(true);
     try {
       if (isFollowing) {
@@ -187,6 +211,59 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
     }
   };
 
+  const toggleBlock = () => {
+    if (!canInteract || blockBusy) return;
+
+    if (isBlocked) {
+      Alert.alert(
+        'Profil entblocken?',
+        `${fullName} kann dir danach wieder Nachrichten senden und mit dir interagieren.`,
+        [
+          { text: 'Abbrechen', style: 'cancel' },
+          {
+            text: 'Entblocken',
+            onPress: async () => {
+              setBlockBusy(true);
+              try {
+                await unblockProfile(currentUserId, profileId);
+                setIsBlocked(false);
+              } catch (e) {
+                Alert.alert('Fehler', e?.message ?? 'Entblocken fehlgeschlagen.');
+              } finally {
+                setBlockBusy(false);
+              }
+            },
+          },
+        ],
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Profil blockieren?',
+      `${fullName} kann dir dann keine Nachrichten mehr senden. Eine bestehende Follow-Beziehung wird entfernt.`,
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Blockieren',
+          style: 'destructive',
+          onPress: async () => {
+            setBlockBusy(true);
+            try {
+              await blockProfile(currentUserId, profileId);
+              setIsBlocked(true);
+              setIsFollowing(false);
+            } catch (e) {
+              Alert.alert('Fehler', e?.message ?? 'Blockieren fehlgeschlagen.');
+            } finally {
+              setBlockBusy(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -196,6 +273,49 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
         <Text style={styles.backBtnText}>Zurück</Text>
       </TouchableOpacity>
 
+      <ReportContentModal
+        visible={showReport}
+        reportedType="profile"
+        targetId={profileId}
+        onClose={() => setShowReport(false)}
+        title="Profil melden"
+        subtitle={`Melde das Profil von ${fullName}, wenn es gegen unsere Regeln verstößt.`}
+      />
+
+      {isBlocked ? (
+        <View style={styles.blockedWrap}>
+          {profile.avatar ? (
+            <Image source={{ uri: profile.avatar }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarInitials}>{initials}</Text>
+            </View>
+          )}
+          <Text style={styles.fullName}>{fullName}</Text>
+          <View style={styles.blockedIconWrap}>
+            <Ban size={22} color={R} />
+          </View>
+          <Text style={styles.blockedTitle}>Profil blockiert</Text>
+          <Text style={styles.blockedSub}>
+            Weitere Inhalte dieses Profils sind nicht sichtbar.
+          </Text>
+          <TouchableOpacity
+            style={styles.unblockBtn}
+            onPress={toggleBlock}
+            activeOpacity={0.85}
+            disabled={blockBusy}
+          >
+            {blockBusy ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Ban size={18} color="#FFFFFF" />
+                <Text style={styles.unblockBtnText}>Entblocken</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      ) : (
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.headerSection}>
           {profile.avatar ? (
@@ -260,6 +380,35 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
                       <Text style={styles.messageBtnText}>Nachricht</Text>
                     </>
                 }
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {canInteract ? (
+            <View style={styles.safetyRow}>
+              <TouchableOpacity
+                style={styles.reportLink}
+                onPress={toggleBlock}
+                activeOpacity={0.75}
+                hitSlop={8}
+                disabled={blockBusy}
+              >
+                {blockBusy ? (
+                  <ActivityIndicator size="small" color={MUTED} />
+                ) : (
+                  <>
+                    <Ban size={14} color={MUTED} />
+                    <Text style={styles.reportLinkText}>Blockieren</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.reportLink}
+                onPress={() => setShowReport(true)}
+                activeOpacity={0.75}
+                hitSlop={8}
+              >
+                <Flag size={14} color={MUTED} />
+                <Text style={styles.reportLinkText}>Melden</Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -349,6 +498,7 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      )}
 
       <FullscreenImageModal uri={fullscreenImage} onClose={() => setFullscreenImage(null)} />
     </SafeAreaView>
@@ -367,6 +517,50 @@ const styles = StyleSheet.create({
   },
   backBtnText: { color: B, fontSize: 14, fontWeight: '700' },
   emptyText: { color: MUTED, fontSize: 14, textAlign: 'center', marginTop: 40 },
+  blockedWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingBottom: 80,
+  },
+  blockedIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  blockedTitle: {
+    color: B,
+    fontSize: 18,
+    fontWeight: '900',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  blockedSub: {
+    color: MUTED,
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 28,
+  },
+  unblockBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: R,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    minWidth: 200,
+  },
+  unblockBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
 
   headerSection: { alignItems: 'center', paddingVertical: 24 },
   avatar: { width: 110, height: 110, borderRadius: 28, marginBottom: 14 },
@@ -446,6 +640,23 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   messageBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  messageBtnDisabled: { opacity: 0.45 },
+  safetyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 20,
+    marginTop: 14,
+  },
+  reportLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 6,
+  },
+  reportLinkText: { color: MUTED, fontSize: 13, fontWeight: '700' },
+  blockLinkActive: { color: R },
 
   profileTabs: {
     flexDirection: 'row',

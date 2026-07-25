@@ -25,6 +25,7 @@ import { supabase } from '../lib/supabase';
 import { useTheme } from '../context/ThemeContext';
 import { createLeagueForumStyles } from '../theme/chatStyles';
 import ForumUserPreviewSheet from './ForumUserPreviewSheet';
+import ReportContentModal from './ReportContentModal';
 
 function formatPostTime(iso) {
   if (!iso) return '';
@@ -69,6 +70,7 @@ export default function LeagueForum({
   const [anonymousMode, setAnonymousMode] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [previewUser, setPreviewUser] = useState(null);
+  const [reportMessageId, setReportMessageId] = useState(null);
   const listRef = useRef(null);
   const onUnreadChangeRef = useRef(onUnreadChange);
   onUnreadChangeRef.current = onUnreadChange;
@@ -150,6 +152,24 @@ export default function LeagueForum({
     }
   };
 
+  const handleLongPress = (item) => {
+    if (!currentUserId || !item?.id) return;
+    if (item.sender_id === currentUserId) return;
+
+    Alert.alert(
+      'Nachricht',
+      'Was möchtest du tun?',
+      [
+        {
+          text: 'Melden',
+          style: 'destructive',
+          onPress: () => setReportMessageId(item.id),
+        },
+        { text: 'Abbrechen', style: 'cancel' },
+      ],
+    );
+  };
+
   const openUserPreview = async (item) => {
     if (!item?.sender_id || item.is_anonymous || !item.sender) return;
 
@@ -212,7 +232,12 @@ export default function LeagueForum({
     );
 
     return (
-      <View style={[styles.postCard, isMine && canOpenProfile && styles.postCardMine]}>
+      <TouchableOpacity
+        style={[styles.postCard, isMine && canOpenProfile && styles.postCardMine]}
+        onLongPress={() => handleLongPress(item)}
+        delayLongPress={350}
+        activeOpacity={0.9}
+      >
         <View style={styles.postHeader}>
           {canOpenProfile ? (
             <TouchableOpacity
@@ -239,7 +264,7 @@ export default function LeagueForum({
           </View>
         </View>
         <Text style={styles.postBody}>{item.content}</Text>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -330,11 +355,21 @@ export default function LeagueForum({
       <ForumUserPreviewSheet
         visible={!!previewUser}
         user={previewUser}
+        currentUserId={currentUserId}
         onClose={() => setPreviewUser(null)}
         onOpenProfile={(profileId) => {
           setPreviewUser(null);
           onOpenProfile?.(profileId);
         }}
+      />
+
+      <ReportContentModal
+        visible={!!reportMessageId}
+        reportedType="message"
+        targetId={reportMessageId}
+        onClose={() => setReportMessageId(null)}
+        title="Nachricht melden"
+        subtitle="Melde diesen Forum-Beitrag, wenn er gegen unsere Regeln verstößt."
       />
     </KeyboardAvoidingView>
   );

@@ -16,16 +16,24 @@ import {
   Platform,
 } from 'react-native';
 import {
-  X, User, Star, Users, Check, Search, UserPlus, Trophy, ChevronRight,
+  X, User, Star, Users, Check, Search, Trophy, ChevronRight, KeyRound, Mail, Ban,
 } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
+import { requestPasswordResetEmail } from '../lib/passwordReset';
+import ChangeEmailScreen from './ChangeEmailScreen';
 import { unfollowTeam } from '../lib/teamFollowers';
 import {
   formatDisplayDate,
   parseBirthDate,
 } from '../lib/profileDates';
+import {
+  fetchBlockedProfiles,
+  unblockProfile,
+  type BlockedProfile,
+} from '../lib/profileBlocks';
 import { useTheme } from '../context/ThemeContext';
 import TeamProfileScreen from './TeamProfileScreen';
+import PlayerProfileScreen from './PlayerProfileScreen';
 
 type RoleKey = 'player' | 'fan' | 'coach';
 
@@ -155,6 +163,18 @@ function createStyles(c: ReturnType<typeof useTheme>['colors']) {
       maxWidth: '60%',
       textAlign: 'right',
     },
+    passwordResetIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: c.background,
+      borderWidth: 1,
+      borderColor: c.border,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    passwordResetLabel: { color: c.text, fontSize: 14, fontWeight: '700' },
+    passwordResetSub: { color: c.textMuted, fontSize: 11, marginTop: 2, lineHeight: 16 },
     hint: {
       color: c.textMuted,
       fontSize: 12,
@@ -268,6 +288,33 @@ function createStyles(c: ReturnType<typeof useTheme>['colors']) {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    blockedEmpty: {
+      paddingHorizontal: 16,
+      paddingVertical: 18,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    blockedEmptyText: {
+      color: c.textMuted,
+      fontSize: 13,
+      fontWeight: '600',
+      flex: 1,
+      lineHeight: 18,
+    },
+    unblockChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 10,
+      backgroundColor: c.background,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
+    unblockChipText: {
+      color: c.text,
+      fontSize: 11,
+      fontWeight: '800',
+    },
     badge: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
     badgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.4 },
 
@@ -366,6 +413,10 @@ export default function AccountInfoScreen({ onBack, onRoleChanged, onTeamsChange
   const [isSearching, setIsSearching] = useState(false);
   const [profileTeamId, setProfileTeamId] = useState<string | null>(null);
   const [teamProfileId, setTeamProfileId] = useState<string | null>(null);
+  const [playerProfileId, setPlayerProfileId] = useState<string | null>(null);
+  const [blockedProfiles, setBlockedProfiles] = useState<BlockedProfile[]>([]);
+  const [sendingPasswordReset, setSendingPasswordReset] = useState(false);
+  const [showChangeEmail, setShowChangeEmail] = useState(false);
 
   const searchRef = useRef<TextInput>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -373,6 +424,16 @@ export default function AccountInfoScreen({ onBack, onRoleChanged, onTeamsChange
   const notifyTeamsChanged = useCallback(() => {
     onTeamsChanged?.();
   }, [onTeamsChanged]);
+
+  const loadBlockedProfiles = useCallback(async (uid: string) => {
+    try {
+      const list = await fetchBlockedProfiles(uid);
+      setBlockedProfiles(list);
+    } catch (e) {
+      console.warn('AccountInfo blocked profiles:', (e as Error)?.message);
+      setBlockedProfiles([]);
+    }
+  }, []);
 
   const loadTeams = useCallback(async (uid: string, currentRole: RoleKey) => {
     if (currentRole === 'fan') {
@@ -454,17 +515,51 @@ export default function AccountInfoScreen({ onBack, onRoleChanged, onTeamsChange
           : '–',
       );
 
-      await loadTeams(user.id, safeRole);
+      await Promise.all([
+        loadTeams(user.id, safeRole),
+        loadBlockedProfiles(user.id),
+      ]);
     } catch (e) {
       console.warn('AccountInfoScreen:', (e as Error)?.message);
     } finally {
       setLoading(false);
     }
-  }, [loadTeams]);
+  }, [loadTeams, loadBlockedProfiles]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const handlePasswordReset = () => {
+    if (!email || sendingPasswordReset) return;
+
+    Alert.alert(
+      'Passwort zurücksetzen',
+      `Wir senden dir einen Link an ${email}. Öffne die E-Mail auf diesem Gerät, um ein neues Passwort zu setzen.`,
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Link senden',
+          onPress: async () => {
+            setSendingPasswordReset(true);
+            try {
+              const { error } = await requestPasswordResetEmail(email);
+              if (error) throw new Error(error);
+              Alert.alert(
+                'E-Mail gesendet',
+                'Prüfe dein Postfach und tippe auf den Link, um dein Passwort zu ändern.',
+              );
+            } catch (err: unknown) {
+              const message = err instanceof Error ? err.message : 'Senden fehlgeschlagen.';
+              Alert.alert('Fehler', message);
+            } finally {
+              setSendingPasswordReset(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   useEffect(() => {
     if (!showTeamSearch) return;
@@ -536,6 +631,30 @@ export default function AccountInfoScreen({ onBack, onRoleChanged, onTeamsChange
     }
   };
 
+  const handleUnblockProfile = (profile: BlockedProfile) => {
+    if (!userId) return;
+    const name = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'dieses Konto';
+
+    Alert.alert(
+      'Profil entblocken?',
+      `${name} kann dir danach wieder Nachrichten senden.`,
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Entblocken',
+          onPress: async () => {
+            try {
+              await unblockProfile(userId, profile.id);
+              setBlockedProfiles((prev) => prev.filter((p) => p.id !== profile.id));
+            } catch (err) {
+              Alert.alert('Fehler', (err as Error)?.message ?? 'Entblocken fehlgeschlagen.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const changeRole = (next: RoleKey) => {
     if (next === role || saving) return;
 
@@ -577,6 +696,28 @@ export default function AccountInfoScreen({ onBack, onRoleChanged, onTeamsChange
     );
   };
 
+  if (playerProfileId) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
+        <PlayerProfileScreen
+          profileId={playerProfileId}
+          onBack={() => {
+            setPlayerProfileId(null);
+            if (userId) loadBlockedProfiles(userId);
+          }}
+          onOpenChat={() => {
+            setPlayerProfileId(null);
+            Alert.alert(
+              'Chat',
+              'Öffne den Chat über die Nachrichten-Ansicht, um zu schreiben.',
+            );
+          }}
+        />
+      </SafeAreaView>
+    );
+  }
+
   if (teamProfileId) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -610,12 +751,24 @@ export default function AccountInfoScreen({ onBack, onRoleChanged, onTeamsChange
     );
   }
 
+  if (showChangeEmail) {
+    return (
+      <ChangeEmailScreen
+        currentEmail={email}
+        onBack={() => {
+          setShowChangeEmail(false);
+          load();
+        }}
+      />
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
 
       <View style={styles.header}>
-        <Text style={styles.title}>Kontoinformationen</Text>
+        <Text style={styles.title}>Konto</Text>
         <TouchableOpacity onPress={onBack} hitSlop={8}>
           <X size={22} color={colors.text} />
         </TouchableOpacity>
@@ -646,18 +799,50 @@ export default function AccountInfoScreen({ onBack, onRoleChanged, onTeamsChange
               <Text style={styles.infoLabel}>Mitglied seit</Text>
               <Text style={styles.infoValue}>{memberSince}</Text>
             </View>
+            <TouchableOpacity
+              style={[styles.teamRow, styles.teamRowBorder]}
+              onPress={() => setShowChangeEmail(true)}
+              activeOpacity={0.75}
+              disabled={!email}
+            >
+              <View style={styles.passwordResetIconWrap}>
+                <Mail size={18} color={colors.text} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.passwordResetLabel}>E-Mail ändern</Text>
+                <Text style={styles.passwordResetSub}>
+                  Neue Adresse eingeben und per Link bestätigen
+                </Text>
+              </View>
+              <ChevronRight size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.teamRow, styles.teamRowBorder]}
+              onPress={handlePasswordReset}
+              activeOpacity={0.75}
+              disabled={sendingPasswordReset || !email}
+            >
+              <View style={styles.passwordResetIconWrap}>
+                <KeyRound size={18} color={colors.text} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.passwordResetLabel}>Passwort zurücksetzen</Text>
+                <Text style={styles.passwordResetSub}>
+                  Link per E-Mail zum Festlegen eines neuen Passworts
+                </Text>
+              </View>
+              {sendingPasswordReset ? (
+                <ActivityIndicator color={colors.textMuted} size="small" />
+              ) : (
+                <ChevronRight size={18} color={colors.textMuted} />
+              )}
+            </TouchableOpacity>
           </View>
 
           <View style={styles.sectionRow}>
             <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>
               {role === 'fan' ? 'GEFOLGTE TEAMS' : 'TEAMZUGEHÖRIGKEIT'}
             </Text>
-            {role === 'player' && memberships.length === 0 && (
-              <TouchableOpacity style={styles.joinBtn} onPress={openTeamSearch} activeOpacity={0.8}>
-                <UserPlus size={13} color={colors.accent} />
-                <Text style={styles.joinBtnText}>Team suchen</Text>
-              </TouchableOpacity>
-            )}
             {role === 'fan' && (
               <TouchableOpacity style={styles.joinBtn} onPress={openTeamSearch} activeOpacity={0.8}>
                 <Star size={13} color={colors.accent} />
@@ -775,6 +960,58 @@ export default function AccountInfoScreen({ onBack, onRoleChanged, onTeamsChange
                   <ChevronRight size={18} color={colors.textMuted} />
                 </TouchableOpacity>
               ))
+            )}
+          </View>
+
+          <Text style={styles.sectionTitle}>BLOCKIERTE KONTEN</Text>
+          <View style={styles.card}>
+            {blockedProfiles.length === 0 ? (
+              <View style={styles.blockedEmpty}>
+                <View style={styles.emptyTeamIcon}>
+                  <Ban size={20} color={colors.textMuted} />
+                </View>
+                <Text style={styles.blockedEmptyText}>
+                  Keine blockierten Konten. Blockierte Profile erscheinen hier.
+                </Text>
+              </View>
+            ) : (
+              blockedProfiles.map((profile, i) => {
+                const name = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Unbekannt';
+                const initial = name.slice(0, 1).toUpperCase();
+                return (
+                  <View
+                    key={profile.id}
+                    style={[styles.teamRow, styles.teamRowWithAction, i > 0 && styles.teamRowBorder]}
+                  >
+                    <TouchableOpacity
+                      style={styles.teamRowMain}
+                      onPress={() => setPlayerProfileId(profile.id)}
+                      activeOpacity={0.75}
+                    >
+                      {profile.avatar
+                        ? <Image source={{ uri: profile.avatar }} style={styles.teamLogo} />
+                        : (
+                          <View style={styles.teamLogoPlaceholder}>
+                            <Text style={{ color: colors.text, fontWeight: '900', fontSize: 14 }}>{initial}</Text>
+                          </View>
+                        )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.teamName} numberOfLines={1}>{name}</Text>
+                        <Text style={styles.resultMeta}>Blockiert</Text>
+                      </View>
+                      <ChevronRight size={18} color={colors.textMuted} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.unblockChip}
+                      onPress={() => handleUnblockProfile(profile)}
+                      activeOpacity={0.8}
+                      hitSlop={6}
+                    >
+                      <Text style={styles.unblockChipText}>Entblocken</Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })
             )}
           </View>
 

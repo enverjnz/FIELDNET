@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import * as Linking from 'expo-linking';
 
 //Component import
 import { 
@@ -16,6 +17,7 @@ import { Trophy, Bell, Search,
 //Screen imports
 import { createAppStyles } from './theme/appStyles';
 import { useTheme } from './context/ThemeContext';
+import { useFilter } from './context/FilterContext';
 import LigenScreen from './screens/LigenScreen.js';
 import TermineScreen from './screens/TermineScreen';
 import ChatScreen from './screens/ChatScreen.js';
@@ -32,6 +34,9 @@ import TeamDashboardScreen from './screens/TeamDashboardScreen.js';
 import PlayerOnboardingFlow from './screens/onboarding/PlayerOnboardingFlow';
 import LandingScreen from './screens/auth/LandingScreen';
 import LoginScreen from './screens/auth/LoginScreen';
+import VerifyEmailScreen from './screens/auth/VerifyEmailScreen';
+import ForgotPasswordScreen from './screens/auth/ForgotPasswordScreen';
+import ResetPasswordScreen from './screens/auth/ResetPasswordScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import AccountInfoScreen from './screens/AccountInfoScreen';
 import DeleteProfileScreen from './screens/DeleteProfileScreen';
@@ -40,6 +45,8 @@ import FeedbackScreen from './screens/FeedbackScreen';
 import DatenschutzScreen from './screens/DatenschutzScreen';
 import ImpressumScreen from './screens/ImpressumScreen';
 import { supabase } from './lib/supabase';
+import { handleAuthRedirectUrl, isEmailConfirmed } from './lib/authRedirect';
+import { finishPendingOnboardingIfNeeded } from './lib/completeOnboarding';
 import { getCoachVerwaltungState, CoachPendingError } from './lib/invoiceCode';
 import { hasUnreadChats, subscribeToIncomingMessages } from './lib/chat';
 import HomeFeed from './components/HomeFeed';
@@ -48,6 +55,7 @@ import MasterFilterBar from './components/MasterFilterBar';
 
 export default function App() {
   const { colors } = useTheme();
+  const { refreshCatalog } = useFilter();
   const styles = useMemo(() => createAppStyles(colors), [colors]);
 
   const [activeTab, setActiveTab] = useState(0); // 0 bedeutet 'NEWS' ist am Anfang aktiv
@@ -62,6 +70,8 @@ export default function App() {
   const [headerInitials, setHeaderInitials]       = useState('?');
   const [headerAvatarKey, setHeaderAvatarKey]     = useState(0);
   const [authState, setAuthState]                 = useState('landing');
+  const [verifyEmail, setVerifyEmail]             = useState('');
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [authReady, setAuthReady]                 = useState(false);
   const [showSettings, setShowSettings]           = useState(false);
   const [showAccountInfo, setShowAccountInfo]     = useState(false);
@@ -81,8 +91,90 @@ export default function App() {
   const [dmChatOpen, setDmChatOpen] = useState(false);
   const [hasUnreadChat, setHasUnreadChat] = useState(false);
   const lastHeaderAvatarRef = useRef(null);
+  const passwordRecoveryRef = useRef(false);
+  const authStateRef = useRef(authState);
+  authStateRef.current = authState;
 
   const bumpProfileRefresh = () => setProfileRefreshKey((k) => k + 1);
+
+  const closeAppOverlays = useCallback(() => {
+    setIsMenuOpen(false);
+    setShowSettings(false);
+    setShowAccountInfo(false);
+    setShowReportProblem(false);
+    setShowFeedback(false);
+    setShowDatenschutz(false);
+    setShowImpressum(false);
+    setShowDeleteProfile(false);
+    setShowTeamDashboard(false);
+    setDashboardTeamId(null);
+    setShowInvoiceCode(false);
+    setShowTeamCreation(false);
+    setPendingInviteCodeId(null);
+    setShowTickerFlow(false);
+    setTickerGame(null);
+  }, []);
+
+  const enterAppIfReady = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user || !isEmailConfirmed(user)) {
+      return false;
+    }
+
+    await finishPendingOnboardingIfNeeded();
+    setAuthState('app');
+    return true;
+  }, []);
+
+  const handleAuthRedirect = useCallback(async (url) => {
+    if (!url) return;
+
+    const result = await handleAuthRedirectUrl(url);
+    if (result.error) {
+      Alert.alert(
+        result.passwordRecovery ? 'Passwort-Link ungültig' : 'E-Mail-Bestätigung fehlgeschlagen',
+        result.error,
+      );
+      return;
+    }
+
+    if (!result.sessionCreated) return;
+
+    if (result.passwordRecovery) {
+      passwordRecoveryRef.current = true;
+      closeAppOverlays();
+      setAuthState('reset-password');
+      return;
+    }
+
+    if (result.emailChange) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      Alert.alert(
+        'E-Mail bestätigt',
+        user?.email
+          ? `Deine neue E-Mail-Adresse ${user.email} ist jetzt aktiv.`
+          : 'Deine neue E-Mail-Adresse ist jetzt aktiv.',
+      );
+      setAuthState('app');
+      return;
+    }
+
+    const entered = await enterAppIfReady();
+    if (!entered) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user?.email) {
+        setVerifyEmail(user.email);
+        setAuthState('verify-email');
+      }
+    }
+  }, [enterAppIfReady, closeAppOverlays]);
 
   const applyHeaderProfile = useCallback((profile, { bustCache = false } = {}) => {
     const rawAvatar = profile?.avatar?.trim() || null;
@@ -171,16 +263,76 @@ export default function App() {
       applyHeaderProfile(data);
     };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setAuthState('app');
-      loadRole();
-    }).finally(() => setAuthReady(true));
+    const bootstrapAuth = async () => {
+      const initialUrl = await Linking.getInitialURL();
+      if (initialUrl) {
+        const result = await handleAuthRedirectUrl(initialUrl);
+        if (result.error) {
+          Alert.alert(
+            result.passwordRecovery ? 'Passwort-Link ungültig' : 'E-Mail-Bestätigung fehlgeschlagen',
+            result.error,
+          );
+        } else if (result.sessionCreated && result.passwordRecovery) {
+          passwordRecoveryRef.current = true;
+          setAuthState('reset-password');
+          await loadRole();
+          setAuthReady(true);
+          return;
+        } else if (result.sessionCreated) {
+          const entered = await enterAppIfReady();
+          if (!entered) {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user?.email) {
+              setVerifyEmail(user.email);
+              setAuthState('verify-email');
+            }
+          }
+          await loadRole();
+          setAuthReady(true);
+          return;
+        }
+      }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user && isEmailConfirmed(session.user)) {
+        await finishPendingOnboardingIfNeeded();
         setAuthState('app');
-      } else if (event === 'SIGNED_OUT') {
+      } else if (session?.user) {
+        await supabase.auth.signOut();
         setAuthState('landing');
+      }
+      await loadRole();
+      setAuthReady(true);
+    };
+
+    bootstrapAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY' && session?.user) {
+        passwordRecoveryRef.current = true;
+        closeAppOverlays();
+        setAuthState('reset-password');
+      } else if (event === 'USER_UPDATED' && session?.user) {
+        // Email change confirmation via deep link often lands here.
+        if (authStateRef.current === 'app' || isEmailConfirmed(session.user)) {
+          setAuthState('app');
+        }
+      } else if (event === 'SIGNED_IN' && session?.user) {
+        if (passwordRecoveryRef.current) {
+          setAuthState('reset-password');
+          return;
+        }
+        if (isEmailConfirmed(session.user)) {
+          await finishPendingOnboardingIfNeeded();
+          setAuthState('app');
+        } else if (session.user.email) {
+          setVerifyEmail(session.user.email);
+          setAuthState('verify-email');
+        }
+      } else if (event === 'SIGNED_OUT') {
+        passwordRecoveryRef.current = false;
+        setAuthState('landing');
+        setVerifyEmail('');
         setUserRole(null);
         setHeaderAvatarUrl(null);
         setHeaderInitials('?');
@@ -191,7 +343,15 @@ export default function App() {
       loadRole();
     });
     return () => subscription.unsubscribe();
-  }, [applyHeaderProfile]);
+  }, [applyHeaderProfile, closeAppOverlays]);
+
+  useEffect(() => {
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      handleAuthRedirect(url);
+    });
+
+    return () => subscription.remove();
+  }, [handleAuthRedirect]);
 
   useEffect(() => {
     if (authState !== 'app') return;
@@ -215,6 +375,23 @@ export default function App() {
       setHasUnreadChat(false);
     }
   }, []);
+
+  const handleHomeRefresh = useCallback(async () => {
+    await Promise.all([
+      refreshCatalog(),
+      refreshUnreadChat(),
+      (async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data } = await supabase
+          .from('profiles')
+          .select('avatar, first_name, last_name')
+          .eq('id', user.id)
+          .maybeSingle();
+        applyHeaderProfile(data);
+      })(),
+    ]);
+  }, [refreshCatalog, refreshUnreadChat, applyHeaderProfile]);
 
   useEffect(() => {
     if (authState !== 'app') return undefined;
@@ -422,7 +599,10 @@ export default function App() {
   };
 
   const renderHomeTab = () => (
-    <HomeFeed onOpenTimeline={(game) => setSelectedGame(game)} />
+    <HomeFeed
+      onOpenTimeline={(game) => setSelectedGame(game)}
+      onPullRefresh={handleHomeRefresh}
+    />
   );
 
   const renderActiveTab = () => {
@@ -483,7 +663,47 @@ export default function App() {
     return (
       <LoginScreen
         onBack={() => setAuthState('landing')}
-        onSuccess={() => setAuthState('app')}
+        onSuccess={() => {
+          finishPendingOnboardingIfNeeded().finally(() => setAuthState('app'));
+        }}
+        onNeedsVerification={(email) => {
+          setVerifyEmail(email);
+          setAuthState('verify-email');
+        }}
+        onForgotPassword={(email) => {
+          setForgotPasswordEmail(email);
+          setAuthState('forgot-password');
+        }}
+      />
+    );
+  }
+
+  if (authState === 'verify-email') {
+    return (
+      <VerifyEmailScreen
+        email={verifyEmail}
+        onBack={() => setAuthState('login')}
+        onVerified={() => setAuthState('app')}
+      />
+    );
+  }
+
+  if (authState === 'forgot-password') {
+    return (
+      <ForgotPasswordScreen
+        initialEmail={forgotPasswordEmail}
+        onBack={() => setAuthState('login')}
+      />
+    );
+  }
+
+  if (authState === 'reset-password') {
+    return (
+      <ResetPasswordScreen
+        onComplete={() => {
+          passwordRecoveryRef.current = false;
+          finishPendingOnboardingIfNeeded().finally(() => setAuthState('app'));
+        }}
       />
     );
   }
@@ -540,7 +760,10 @@ export default function App() {
         <View style={[styles.headerSide, styles.headerSideRight]}>
           <TouchableOpacity
             style={styles.burgerButton}
-            onPress={() => setIsMenuOpen(true)}
+            onPress={() => {
+              Keyboard.dismiss();
+              setIsMenuOpen(true);
+            }}
           >
             <Menu size={24} color={colors.text} />
           </TouchableOpacity>
@@ -632,7 +855,7 @@ export default function App() {
         </View>
       )}
 
-      {/* KONTOINFORMATIONEN */}
+      {/* KONTO */}
       {showAccountInfo && (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background, zIndex: 201 }}>
           <AccountInfoScreen
@@ -776,13 +999,13 @@ export default function App() {
               {[
                 { label: 'Live-Ticker starten', icon: <PlusCircle size={20} color="#C01830" />, action: openTickerFlow },
                 userRole === 'coach' ? { label: 'Vereinsverwaltung', icon: <Trophy size={20} color={colors.text} />, action: handleVerwaltung } : null,
+                { label: 'Konto', icon: <User size={20} color={colors.text} />, action: () => setShowAccountInfo(true) },
                 { label: 'Einstellungen', icon: <LayoutGrid size={20} color={colors.text} />, action: () => setShowSettings(true) },
                 { label: 'Feedback geben', icon: <MessageSquare size={20} color={colors.text} />, action: () => setShowFeedback(true) },
                 { label: 'Problem melden', icon: <Bell size={20} color={colors.text} />, action: () => setShowReportProblem(true) },
                 { label: 'Über Fieldnet', icon: <Trophy size={20} color={colors.text} /> },
                 { label: 'Datenschutz', icon: <Users size={20} color={colors.text} />, action: () => setShowDatenschutz(true) },
                 { label: 'Impressum', icon: <Users size={20} color={colors.text} />, action: () => setShowImpressum(true) },
-                { label: 'Kontoinformationen', icon: <User size={20} color={colors.text} />, action: () => setShowAccountInfo(true) },
               ].filter(Boolean).map((item, index) => (
                 <TouchableOpacity 
                   key={index} 

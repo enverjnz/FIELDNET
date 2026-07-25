@@ -11,9 +11,10 @@ import {
 } from 'react-native';
 import { CheckCircle } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
-import { birthDateProfileFields } from '../../lib/profileDates';
-import { resolveProfileAvatarUrl } from '../../lib/uploadImage';
-import { followTeam } from '../../lib/teamFollowers';
+import { getEmailRedirectUrl } from '../../lib/authRedirect';
+import { completeOnboardingForUser } from '../../lib/completeOnboarding';
+import { clearPendingOnboarding, savePendingOnboarding } from '../../lib/pendingOnboarding';
+import VerifyEmailScreen from '../auth/VerifyEmailScreen';
 import Step1_RoleSelect from './steps/Step1_RoleSelect';
 import Step2_BasicInfo from './steps/Step2_BasicInfo';
 import Step3_TeamSearch from './steps/Step3_TeamSearch';
@@ -176,6 +177,7 @@ export default function PlayerOnboardingFlow({ onComplete, onBack }: Props) {
   const [data, setData] = useState<OnboardingData>(INITIAL_DATA);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [doneAs, setDoneAs] = useState<'player' | 'fan' | 'coach' | null>(null);
+  const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
 
   const totalSteps = totalStepsFor(data.role);
 
@@ -190,48 +192,42 @@ export default function PlayerOnboardingFlow({ onComplete, onBack }: Props) {
     const { data: signUpData, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { role } },   // stored in user_metadata on the auth session
+      options: {
+        data: { role },
+        emailRedirectTo: getEmailRedirectUrl(),
+      },
     });
     if (error) throw error;
     const user = signUpData?.user;
     if (!user) throw new Error('Kein Benutzer zurückgegeben.');
-    return user;
+    return {
+      user,
+      needsVerification: !signUpData.session,
+    };
+  };
+
+  const finishRoleAfterVerification = (role: 'player' | 'fan' | 'coach') => {
+    setVerificationEmail(null);
+    setDoneAs(role);
+  };
+
+  const handleVerified = (role?: 'player' | 'fan' | 'coach') => {
+    finishRoleAfterVerification(role ?? data.role);
   };
 
   // ─── Player submit ───────────────────────────────────────────────────────────
   const handlePlayerSubmit = async (email: string, password: string) => {
     setIsSubmitting(true);
     try {
-      const user = await createAccount(email, password, 'player');
+      const { user, needsVerification } = await createAccount(email, password, 'player');
 
-      const avatarUrl = await resolveProfileAvatarUrl(user.id, data.avatarUri);
-
-      const { error: profileError } = await supabase.from('profiles').upsert({
-        id: user.id,
-        role: 'player',
-        first_name: data.firstName.trim(),
-        last_name: data.lastName.trim(),
-        bio: data.bio.trim(),
-        avatar: avatarUrl,
-        ...birthDateProfileFields(data.birthDate),
-        position: data.position.trim(),
-        jersey_number: data.jerseyNumber.trim(),
-        gender: data.gender.trim(),
-        weight: data.weight ? parseFloat(data.weight) : null,
-        height: data.height ? parseFloat(data.height) : null,
-        nationality: data.nationality.trim(),
-      });
-      if (profileError) throw profileError;
-
-      if (data.selectedTeamId) {
-        const { error: membershipError } = await supabase.from('team_memberships').insert({
-          player_id: user.id,
-          team_id: data.selectedTeamId,
-          status: 'pending',
-        });
-        if (membershipError) throw membershipError;
+      if (needsVerification) {
+        await savePendingOnboarding({ email, data });
+        setVerificationEmail(email);
+        return;
       }
 
+      await completeOnboardingForUser(user.id, data);
       setDoneAs('player');
     } catch (err: any) {
       Alert.alert('Fehler', networkSafeMessage(err));
@@ -244,26 +240,15 @@ export default function PlayerOnboardingFlow({ onComplete, onBack }: Props) {
   const handleFanSubmit = async (email: string, password: string) => {
     setIsSubmitting(true);
     try {
-      const user = await createAccount(email, password, 'fan');
+      const { user, needsVerification } = await createAccount(email, password, 'fan');
 
-      const avatarUrl = await resolveProfileAvatarUrl(user.id, data.avatarUri);
-
-      const { error: profileError } = await supabase.from('profiles').upsert({
-        id: user.id,
-        role: 'fan',
-        first_name: data.firstName.trim(),
-        last_name: data.lastName.trim(),
-        bio: data.bio.trim(),
-        avatar: avatarUrl,
-        ...birthDateProfileFields(data.birthDate),
-        favourite_team_id: data.followedTeams[0]?.id ?? null,
-      });
-      if (profileError) throw profileError;
-
-      for (const team of data.followedTeams) {
-        await followTeam(user.id, team.id);
+      if (needsVerification) {
+        await savePendingOnboarding({ email, data });
+        setVerificationEmail(email);
+        return;
       }
 
+      await completeOnboardingForUser(user.id, data);
       setDoneAs('fan');
     } catch (err: any) {
       Alert.alert('Fehler', networkSafeMessage(err));
@@ -276,36 +261,15 @@ export default function PlayerOnboardingFlow({ onComplete, onBack }: Props) {
   const handleCoachSubmit = async (email: string, password: string) => {
     setIsSubmitting(true);
     try {
-      const user = await createAccount(email, password, 'coach');
+      const { user, needsVerification } = await createAccount(email, password, 'coach');
 
-      const avatarUrl = await resolveProfileAvatarUrl(user.id, data.avatarUri);
-
-      const { error: profileError } = await supabase.from('profiles').upsert({
-        id: user.id,
-        role: 'coach',
-        first_name: data.firstName.trim(),
-        last_name: data.lastName.trim(),
-        bio: data.bio.trim(),
-        avatar: avatarUrl,
-        ...birthDateProfileFields(data.birthDate),
-        coaching_role: data.coachingRole.trim() || null,
-        coaching_license: data.coachingLicense.trim() || null,
-        coaching_experience: data.coachingExperience
-          ? parseInt(data.coachingExperience, 10)
-          : null,
-        coaching_specialization: data.coachingSpecialization.trim() || null,
-      });
-      if (profileError) throw profileError;
-
-      if (data.selectedTeamId) {
-        const { error: membershipError } = await supabase.from('team_memberships').insert({
-          player_id: user.id,
-          team_id: data.selectedTeamId,
-          status: 'coach_pending',
-        });
-        if (membershipError) throw membershipError;
+      if (needsVerification) {
+        await savePendingOnboarding({ email, data });
+        setVerificationEmail(email);
+        return;
       }
 
+      await completeOnboardingForUser(user.id, data);
       setDoneAs('coach');
     } catch (err: any) {
       Alert.alert('Fehler', networkSafeMessage(err));
@@ -315,6 +279,20 @@ export default function PlayerOnboardingFlow({ onComplete, onBack }: Props) {
   };
 
   // ─── Completion screens ──────────────────────────────────────────────────────
+  if (verificationEmail) {
+    return (
+      <VerifyEmailScreen
+        email={verificationEmail}
+        onBack={async () => {
+          await clearPendingOnboarding();
+          setVerificationEmail(null);
+          onBack();
+        }}
+        onVerified={handleVerified}
+      />
+    );
+  }
+
   if (doneAs === 'player') return <PendingScreen onContinue={onComplete} />;
   if (doneAs === 'fan') return <FanWelcomeScreen onContinue={onComplete} />;
   if (doneAs === 'coach') return <CoachWelcomeScreen onContinue={onComplete} />;

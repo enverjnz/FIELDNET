@@ -10,8 +10,11 @@ import {
   ImageBackground,
 } from 'react-native';
 
-const DARK_BLUE = '#1A2F6E';
-const RED = '#C01830';
+import {
+  AUTH_BUTTON_SIDE_INSET,
+  AUTH_CONTENT_INDENT,
+  authBackgroundStyles,
+} from './authScreenLayout';
 
 type Props = {
   onLogin: () => void;
@@ -22,18 +25,18 @@ export default function LandingScreen({ onLogin, onRegister }: Props) {
   return (
     <ImageBackground
       source={require('../../assets/bg_01.jpg')}
-      style={styles.background}
+      style={authBackgroundStyles.background}
       resizeMode="cover"
     >
-      <View style={styles.overlay} />
-      <SafeAreaView style={styles.safe}>
+      <View style={authBackgroundStyles.overlay} />
+      <SafeAreaView style={[authBackgroundStyles.safe, styles.safeLayout]}>
         <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
         {/* LOGO */}
-        <View style={styles.logoSection}>
+        <View style={authBackgroundStyles.logoSection}>
           <Image
             source={require('../../assets/fieldnet_logo.png')}
-            style={styles.logoImage}
+            style={authBackgroundStyles.logoImage}
             resizeMode="contain"
           />
         </View>
@@ -83,37 +86,18 @@ export default function LandingScreen({ onLogin, onRegister }: Props) {
   );
 }
 
-const CONTENT_INDENT = 40;
-const BUTTON_SIDE_INSET = 48;
+const RED = '#C01830';
 
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-  },
-  safe: {
-    flex: 1,
+  safeLayout: {
     justifyContent: 'space-between',
-    paddingBottom: 32,
-  },
-
-  logoSection: {
-    alignItems: 'center',
-    paddingTop: 32,
-  },
-  logoImage: {
-    width: 220,
-    height: 170,
   },
 
   heroSection: {
     flex: 1,
     justifyContent: 'center',
     paddingTop: 8,
-    paddingLeft: CONTENT_INDENT,
+    paddingLeft: AUTH_CONTENT_INDENT,
     paddingRight: 28,
   },
   heroTitle: {
@@ -157,7 +141,7 @@ const styles = StyleSheet.create({
   actions: {
     gap: 10,
     marginBottom: 20,
-    marginHorizontal: BUTTON_SIDE_INSET,
+    marginHorizontal: AUTH_BUTTON_SIDE_INSET,
   },
   btnPrimary: {
     backgroundColor: RED,
@@ -194,7 +178,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.55)',
     fontSize: 11,
     lineHeight: 16,
-    paddingLeft: CONTENT_INDENT,
+    paddingLeft: AUTH_CONTENT_INDENT,
     paddingRight: 28,
   },
 });

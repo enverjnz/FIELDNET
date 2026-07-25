@@ -68,6 +68,7 @@ export default function ChatScreen({
     isFilterReady,
     catalogLoading,
     selectedLeague,
+    refreshCatalog,
   } = useFilter();
 
   const [activeSubTab, setActiveSubTab] = useState(0); // 0 = DMs, 1 = Forum
@@ -91,7 +92,6 @@ export default function ChatScreen({
       if (!silent) setConversations([]);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, []);
 
@@ -160,9 +160,103 @@ export default function ChatScreen({
     onDmChatOpenChange?.(false);
   }, [onDmChatOpenChange]);
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    load({ silent: true }).finally(() => setRefreshing(false));
+    try {
+      if (activeSubTab === 1) {
+        await refreshCatalog();
+      } else {
+        await load({ silent: true });
+        onUnreadChangeRef.current?.();
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }, [activeSubTab, load, refreshCatalog]);
+
+  const refreshControl = (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      tintColor={colors.text}
+      colors={[colors.text]}
+    />
+  );
+
+  const renderDmList = () => {
+    if (loading && !refreshing) {
+      return (
+        <ActivityIndicator color={colors.text} style={{ marginVertical: 40 }} />
+      );
+    }
+
+    if (directChats.length === 0) {
+      return (
+        <View style={[styles.emptyBox, { marginHorizontal: 16, marginTop: 24 }]}>
+          <MessageSquare size={28} color={colors.textMuted} />
+          <Text style={styles.emptyTitle}>Noch keine Nachrichten</Text>
+          <Text style={styles.emptySub}>
+            Schreib anderen Spielern über deren Profil eine Nachricht.
+          </Text>
+        </View>
+      );
+    }
+
+    return directChats.map((dm) => {
+      const name = formatChatName(dm.other_user);
+      const unread = dm.unread_count ?? 0;
+      const otherId = dm.other_user?.id;
+      return (
+        <TouchableOpacity
+          key={dm.id}
+          style={styles.dmRow}
+          onPress={() => setActiveConversationId(dm.id)}
+          activeOpacity={0.75}
+        >
+          <TouchableOpacity
+            style={styles.dmAvatarCircleWrap}
+            onPress={() => otherId && setViewProfileId(otherId)}
+            disabled={!otherId}
+            activeOpacity={otherId ? 0.75 : 1}
+            hitSlop={4}
+          >
+            <Avatar uri={dm.other_user?.avatar} label={name} styles={styles} />
+            <UnreadBadge count={unread} styles={styles} />
+          </TouchableOpacity>
+          <View style={styles.dmRowInfo}>
+            <Text style={styles.dmRowName} numberOfLines={1}>{name}</Text>
+            {dm.last_message ? (
+              <Text style={styles.dmRowPreview} numberOfLines={1}>
+                {dm.last_message}
+              </Text>
+            ) : (
+              <Text style={styles.dmRowPreview}>Direktnachricht</Text>
+            )}
+          </View>
+        </TouchableOpacity>
+      );
+    });
+  };
+
+  const renderForumEmpty = () => {
+    if (!isFilterReady && !catalogLoading) {
+      return <FilterEmptyPrompt style={{ marginTop: 16, marginHorizontal: 16 }} />;
+    }
+
+    if (catalogLoading && !selectedLeagueId) {
+      return (
+        <ActivityIndicator color={colors.text} style={{ marginVertical: 40 }} />
+      );
+    }
+
+    return (
+      <View style={[styles.emptyBox, { marginHorizontal: 16, marginTop: 24 }]}>
+        <Text style={styles.emptyTitle}>Liga wählen</Text>
+        <Text style={styles.emptySub}>
+          Wähle im Menü über den Master-Filter eine Liga, um das Forum zu sehen und Beiträge zu posten.
+        </Text>
+      </View>
+    );
   };
 
   if (viewProfileId) {
@@ -254,93 +348,36 @@ export default function ChatScreen({
       </View>
 
       {activeSubTab === 0 ? (
+        <ScrollView
+          style={styles.tabPane}
+          contentContainerStyle={[styles.dmListContent, { flexGrow: 1 }]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={refreshControl}
+        >
+          {renderDmList()}
+          <View style={{ height: BOTTOM_NAV_INSET }} />
+        </ScrollView>
+      ) : selectedLeagueId ? (
         <View style={styles.tabPane}>
-          {loading ? (
-            <ActivityIndicator color={colors.text} style={{ marginVertical: 40 }} />
-          ) : directChats.length === 0 ? (
-            <View style={[styles.emptyBox, { marginHorizontal: 16, marginTop: 24 }]}>
-              <MessageSquare size={28} color={colors.textMuted} />
-              <Text style={styles.emptyTitle}>Noch keine Nachrichten</Text>
-              <Text style={styles.emptySub}>
-                Schreib anderen Spielern über deren Profil eine Nachricht.
-              </Text>
-            </View>
-          ) : (
-            <ScrollView
-              style={styles.dmList}
-              contentContainerStyle={styles.dmListContent}
-              showsVerticalScrollIndicator={false}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  tintColor={colors.text}
-                  colors={[colors.text]}
-                />
-              }
-            >
-              {directChats.map((dm) => {
-                const name = formatChatName(dm.other_user);
-                const unread = dm.unread_count ?? 0;
-                const otherId = dm.other_user?.id;
-                return (
-                  <TouchableOpacity
-                    key={dm.id}
-                    style={styles.dmRow}
-                    onPress={() => setActiveConversationId(dm.id)}
-                    activeOpacity={0.75}
-                  >
-                    <TouchableOpacity
-                      style={styles.dmAvatarCircleWrap}
-                      onPress={() => otherId && setViewProfileId(otherId)}
-                      disabled={!otherId}
-                      activeOpacity={otherId ? 0.75 : 1}
-                      hitSlop={4}
-                    >
-                      <Avatar uri={dm.other_user?.avatar} label={name} styles={styles} />
-                      <UnreadBadge count={unread} styles={styles} />
-                    </TouchableOpacity>
-                    <View style={styles.dmRowInfo}>
-                      <Text style={styles.dmRowName} numberOfLines={1}>{name}</Text>
-                      {dm.last_message ? (
-                        <Text style={styles.dmRowPreview} numberOfLines={1}>
-                          {dm.last_message}
-                        </Text>
-                      ) : (
-                        <Text style={styles.dmRowPreview}>Direktnachricht</Text>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-              <View style={{ height: BOTTOM_NAV_INSET }} />
-            </ScrollView>
-          )}
+          <LeagueForum
+            key={selectedLeagueId}
+            leagueId={selectedLeagueId}
+            leagueName={selectedLeague?.name}
+            bottomInset={BOTTOM_NAV_INSET}
+            onUnreadChange={onUnreadChange}
+            onOpenProfile={(profileId) => setViewProfileId(profileId)}
+          />
         </View>
       ) : (
-        <View style={styles.tabPane}>
-          {!isFilterReady && !catalogLoading ? (
-            <FilterEmptyPrompt style={{ marginTop: 16, marginHorizontal: 16 }} />
-          ) : catalogLoading && !selectedLeagueId ? (
-            <ActivityIndicator color={colors.text} style={{ marginVertical: 40 }} />
-          ) : selectedLeagueId ? (
-            <LeagueForum
-              key={selectedLeagueId}
-              leagueId={selectedLeagueId}
-              leagueName={selectedLeague?.name}
-              bottomInset={BOTTOM_NAV_INSET}
-              onUnreadChange={onUnreadChange}
-              onOpenProfile={(profileId) => setViewProfileId(profileId)}
-            />
-          ) : (
-            <View style={[styles.emptyBox, { marginHorizontal: 16, marginTop: 24 }]}>
-              <Text style={styles.emptyTitle}>Liga wählen</Text>
-              <Text style={styles.emptySub}>
-                Wähle im Menü über den Master-Filter eine Liga, um das Forum zu sehen und Beiträge zu posten.
-              </Text>
-            </View>
-          )}
-        </View>
+        <ScrollView
+          style={styles.tabPane}
+          contentContainerStyle={{ flexGrow: 1 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={refreshControl}
+        >
+          {renderForumEmpty()}
+          <View style={{ height: BOTTOM_NAV_INSET }} />
+        </ScrollView>
       )}
     </View>
   );

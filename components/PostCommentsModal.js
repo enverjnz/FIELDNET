@@ -8,12 +8,12 @@ import {
   FlatList,
   TextInput,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   Alert,
   Image,
+  Keyboard,
 } from 'react-native';
-import { X, Send, Check } from 'lucide-react-native';
+import { X, Send, Check, Flag } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import {
   fetchCommentsForPost,
@@ -23,6 +23,7 @@ import {
   formatCommentAuthor,
   formatCommentDate,
 } from '../lib/postComments';
+import ReportContentModal from './ReportContentModal';
 
 const B = '#1A2F6E';
 const R = '#C01830';
@@ -49,6 +50,8 @@ export default function PostCommentsModal({ visible, post, onClose, onCountChang
   const [error, setError] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [editingCommentId, setEditingCommentId] = useState(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [reportTargetId, setReportTargetId] = useState(null);
 
   const loadComments = useCallback(async () => {
     if (!post?.id) return;
@@ -74,6 +77,28 @@ export default function PostCommentsModal({ visible, post, onClose, onCountChang
       if (!cancelled) setCurrentUserId(user?.id ?? null);
     })();
     return () => { cancelled = true; };
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible) {
+      setKeyboardHeight(0);
+      return undefined;
+    }
+
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
   }, [visible]);
 
   useEffect(() => {
@@ -152,20 +177,36 @@ export default function PostCommentsModal({ visible, post, onClose, onCountChang
   };
 
   const handleLongPress = (comment) => {
-    if (!currentUserId || comment.user_id !== currentUserId) return;
+    if (!currentUserId) return;
+
+    if (comment.user_id === currentUserId) {
+      Alert.alert(
+        'Dein Kommentar',
+        'Was möchtest du tun?',
+        [
+          {
+            text: 'Bearbeiten',
+            onPress: () => startEdit(comment),
+          },
+          {
+            text: 'Löschen',
+            style: 'destructive',
+            onPress: () => confirmDelete(comment),
+          },
+          { text: 'Abbrechen', style: 'cancel' },
+        ],
+      );
+      return;
+    }
 
     Alert.alert(
-      'Dein Kommentar',
+      'Kommentar',
       'Was möchtest du tun?',
       [
         {
-          text: 'Bearbeiten',
-          onPress: () => startEdit(comment),
-        },
-        {
-          text: 'Löschen',
+          text: 'Melden',
           style: 'destructive',
-          onPress: () => confirmDelete(comment),
+          onPress: () => setReportTargetId(comment.id),
         },
         { text: 'Abbrechen', style: 'cancel' },
       ],
@@ -179,10 +220,15 @@ export default function PostCommentsModal({ visible, post, onClose, onCountChang
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        style={styles.safe}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <View style={styles.safe}>
+        <ReportContentModal
+          visible={!!reportTargetId}
+          reportedType="comment"
+          targetId={reportTargetId}
+          onClose={() => setReportTargetId(null)}
+          title="Kommentar melden"
+        />
+
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>Kommentare</Text>
@@ -196,20 +242,26 @@ export default function PostCommentsModal({ visible, post, onClose, onCountChang
         </View>
 
         {loading ? (
-          <ActivityIndicator color={B} style={{ marginTop: 40 }} />
+          <View style={styles.listArea}>
+            <ActivityIndicator color={B} style={{ marginTop: 40 }} />
+          </View>
         ) : error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity onPress={loadComments} style={styles.retryBtn}>
-              <Text style={styles.retryText}>Erneut laden</Text>
-            </TouchableOpacity>
+          <View style={styles.listArea}>
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{error}</Text>
+              <TouchableOpacity onPress={loadComments} style={styles.retryBtn}>
+                <Text style={styles.retryText}>Erneut laden</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
           <FlatList
+            style={styles.list}
             data={comments}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
             ListEmptyComponent={
               <View style={styles.emptyWrap}>
                 <Text style={styles.emptyText}>Noch keine Kommentare. Sei der Erste!</Text>
@@ -218,6 +270,7 @@ export default function PostCommentsModal({ visible, post, onClose, onCountChang
             renderItem={({ item }) => {
               const author = formatCommentAuthor(item);
               const isMine = !!currentUserId && item.user_id === currentUserId;
+              const canReport = !!currentUserId && !isMine;
               const isEditing = editingCommentId === item.id;
               return (
                 <TouchableOpacity
@@ -227,8 +280,8 @@ export default function PostCommentsModal({ visible, post, onClose, onCountChang
                   ]}
                   onLongPress={() => handleLongPress(item)}
                   delayLongPress={350}
-                  activeOpacity={isMine ? 0.7 : 1}
-                  disabled={!isMine}
+                  activeOpacity={currentUserId ? 0.7 : 1}
+                  disabled={!currentUserId}
                 >
                   <CommentAvatar uri={item.profiles?.avatar} label={author} />
                   <View style={styles.commentBody}>
@@ -237,6 +290,16 @@ export default function PostCommentsModal({ visible, post, onClose, onCountChang
                         {isMine ? 'Du' : author}
                       </Text>
                       <Text style={styles.commentDate}>{formatCommentDate(item.created_at)}</Text>
+                      {canReport ? (
+                        <TouchableOpacity
+                          onPress={() => setReportTargetId(item.id)}
+                          hitSlop={8}
+                          style={styles.reportIconBtn}
+                          accessibilityLabel="Kommentar melden"
+                        >
+                          <Flag size={14} color={MUTED} />
+                        </TouchableOpacity>
+                      ) : null}
                     </View>
                     <Text style={styles.commentContent}>{item.content}</Text>
                   </View>
@@ -246,46 +309,50 @@ export default function PostCommentsModal({ visible, post, onClose, onCountChang
           />
         )}
 
-        {editingCommentId ? (
-          <View style={styles.editBanner}>
-            <Text style={styles.editBannerText}>Kommentar bearbeiten</Text>
-            <TouchableOpacity onPress={cancelEdit} hitSlop={8}>
-              <Text style={styles.editBannerCancel}>Abbrechen</Text>
+        <View style={[styles.composer, { paddingBottom: keyboardHeight }]}>
+          {editingCommentId ? (
+            <View style={styles.editBanner}>
+              <Text style={styles.editBannerText}>Kommentar bearbeiten</Text>
+              <TouchableOpacity onPress={cancelEdit} hitSlop={8}>
+                <Text style={styles.editBannerCancel}>Abbrechen</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          <View style={styles.inputRow}>
+            <TextInput
+              style={styles.input}
+              value={draft}
+              onChangeText={setDraft}
+              placeholder={editingCommentId ? 'Kommentar ändern…' : 'Kommentar schreiben…'}
+              placeholderTextColor="#9CA3AF"
+              multiline
+              maxLength={500}
+            />
+            <TouchableOpacity
+              style={[styles.sendBtn, (!draft.trim() || submitting) && styles.sendBtnDisabled]}
+              onPress={handleSubmit}
+              disabled={!draft.trim() || submitting}
+              activeOpacity={0.85}
+            >
+              {submitting
+                ? <ActivityIndicator size="small" color="#FFFFFF" />
+                : editingCommentId
+                  ? <Check size={18} color="#FFFFFF" />
+                  : <Send size={18} color="#FFFFFF" />
+              }
             </TouchableOpacity>
           </View>
-        ) : null}
-
-        <View style={styles.inputRow}>
-          <TextInput
-            style={styles.input}
-            value={draft}
-            onChangeText={setDraft}
-            placeholder={editingCommentId ? 'Kommentar ändern…' : 'Kommentar schreiben…'}
-            placeholderTextColor="#9CA3AF"
-            multiline
-            maxLength={500}
-          />
-          <TouchableOpacity
-            style={[styles.sendBtn, (!draft.trim() || submitting) && styles.sendBtnDisabled]}
-            onPress={handleSubmit}
-            disabled={!draft.trim() || submitting}
-            activeOpacity={0.85}
-          >
-            {submitting
-              ? <ActivityIndicator size="small" color="#FFFFFF" />
-              : editingCommentId
-                ? <Check size={18} color="#FFFFFF" />
-                : <Send size={18} color="#FFFFFF" />
-            }
-          </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#FFFFFF' },
+  listArea: { flex: 1 },
+  list: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -338,6 +405,14 @@ const styles = StyleSheet.create({
   },
   commentAuthor: { color: B, fontSize: 13, fontWeight: '800', flex: 1 },
   commentDate: { color: MUTED, fontSize: 10, fontWeight: '600' },
+  reportIconBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: BG,
+  },
   commentContent: { color: B, fontSize: 14, lineHeight: 20, fontWeight: '500' },
   editBanner: {
     flexDirection: 'row',
@@ -351,6 +426,9 @@ const styles = StyleSheet.create({
   },
   editBannerText: { color: B, fontSize: 12, fontWeight: '800' },
   editBannerCancel: { color: R, fontSize: 12, fontWeight: '800' },
+  composer: {
+    backgroundColor: '#FFFFFF',
+  },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
