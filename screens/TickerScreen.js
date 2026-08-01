@@ -425,12 +425,32 @@ export default function TickerScreen({ game, onBack, onExit, onGameUpdated }) {
                 <Text style={styles.buttonLabelSub}>POINT AFTER (PAT)</Text>
               </TouchableOpacity>
 
+              <TouchableOpacity style={styles.scoreButton} onPress={() => queueEvent('pick_six', 6)}>
+                <View style={styles.buttonHeader}>
+                  <Text style={styles.buttonPointsGreen}>+6</Text>
+                  <Plus size={18} color={teamAccent} />
+                </View>
+                <Text style={styles.buttonLabelSub}>PICK-6</Text>
+              </TouchableOpacity>
+
               <TouchableOpacity style={styles.statButton} onPress={() => queueEvent('interception', 0)}>
                 <Text style={styles.statButtonText}>INTERCEPTION (Stat)</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.statButton} onPress={() => queueEvent('sack', 0)}>
                 <Text style={styles.statButtonText}>SACK (Stat)</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.statButton} onPress={() => queueEvent('fumble', 0)}>
+                <Text style={styles.statButtonText}>FUMBLE (Stat)</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.statButton} onPress={() => queueEvent('fumble_recovery', 0)}>
+                <Text style={styles.statButtonText}>FUMBLE-RECOVERY (Stat)</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.statButton} onPress={() => queueEvent('timeout', 0)}>
+                <Text style={styles.statButtonText}>TIMEOUT</Text>
               </TouchableOpacity>
 
               <Text style={[styles.inputLabel, { marginTop: 16 }]}>Involvierter Spieler (Optional, nur Heimteam)</Text>

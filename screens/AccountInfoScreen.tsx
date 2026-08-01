@@ -14,9 +14,10 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from 'react-native';
 import {
-  X, User, Star, Users, Check, Search, Trophy, ChevronRight, KeyRound, Mail, Ban,
+  X, User, Star, Users, Check, Search, Trophy, ChevronRight, KeyRound, Mail, Ban, Bandage,
 } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { requestPasswordResetEmail } from '../lib/passwordReset';
@@ -31,6 +32,7 @@ import {
   unblockProfile,
   type BlockedProfile,
 } from '../lib/profileBlocks';
+import { setPlayerInjuredStatus } from '../lib/playerStatus';
 import { useTheme } from '../context/ThemeContext';
 import TeamProfileScreen from './TeamProfileScreen';
 import PlayerProfileScreen from './PlayerProfileScreen';
@@ -175,6 +177,25 @@ function createStyles(c: ReturnType<typeof useTheme>['colors']) {
     },
     passwordResetLabel: { color: c.text, fontSize: 14, fontWeight: '700' },
     passwordResetSub: { color: c.textMuted, fontSize: 11, marginTop: 2, lineHeight: 16 },
+    toggleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 16,
+    },
+    toggleIconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    toggleLabel: { color: c.text, fontSize: 15, fontWeight: '800' },
+    toggleSub: { color: c.textMuted, fontSize: 11, marginTop: 3, lineHeight: 16 },
     hint: {
       color: c.textMuted,
       fontSize: 12,
@@ -417,6 +438,8 @@ export default function AccountInfoScreen({ onBack, onRoleChanged, onTeamsChange
   const [blockedProfiles, setBlockedProfiles] = useState<BlockedProfile[]>([]);
   const [sendingPasswordReset, setSendingPasswordReset] = useState(false);
   const [showChangeEmail, setShowChangeEmail] = useState(false);
+  const [isInjured, setIsInjured] = useState(false);
+  const [savingInjuredStatus, setSavingInjuredStatus] = useState(false);
 
   const searchRef = useRef<TextInput>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -492,13 +515,14 @@ export default function AccountInfoScreen({ onBack, onRoleChanged, onTeamsChange
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('role, birth_date, created_at')
+        .select('role, birth_date, created_at, is_injured')
         .eq('id', user.id)
         .maybeSingle();
 
       const nextRole = (profile?.role || user.user_metadata?.role || 'player') as RoleKey;
       const safeRole = (['player', 'fan', 'coach'].includes(nextRole) ? nextRole : 'player') as RoleKey;
       setRole(safeRole);
+      setIsInjured(Boolean(profile?.is_injured));
 
       if (profile?.birth_date) {
         setBirthDateLabel(formatDisplayDate(parseBirthDate(profile.birth_date)));
@@ -653,6 +677,24 @@ export default function AccountInfoScreen({ onBack, onRoleChanged, onTeamsChange
         },
       ],
     );
+  };
+
+  const toggleInjuredStatus = async (next: boolean) => {
+    if (savingInjuredStatus) return;
+
+    const previous = isInjured;
+    setIsInjured(next);
+    setSavingInjuredStatus(true);
+
+    try {
+      await setPlayerInjuredStatus(next);
+      notifyTeamsChanged();
+    } catch (e) {
+      setIsInjured(previous);
+      Alert.alert('Fehler', (e as Error)?.message ?? 'Status konnte nicht gespeichert werden.');
+    } finally {
+      setSavingInjuredStatus(false);
+    }
   };
 
   const changeRole = (next: RoleKey) => {
@@ -838,6 +880,32 @@ export default function AccountInfoScreen({ onBack, onRoleChanged, onTeamsChange
               )}
             </TouchableOpacity>
           </View>
+
+          {role === 'player' ? (
+            <>
+              <Text style={styles.sectionTitle}>SPIELER-STATUS</Text>
+              <View style={styles.card}>
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleIconWrap}>
+                    <Bandage size={18} color={colors.accent} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.toggleLabel}>Als verletzt markieren</Text>
+                    <Text style={styles.toggleSub}>
+                      Andere sehen den Status „Verletzt“ in deinem Profil.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={isInjured}
+                    onValueChange={toggleInjuredStatus}
+                    disabled={savingInjuredStatus}
+                    trackColor={{ false: colors.border, true: colors.accent }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+              </View>
+            </>
+          ) : null}
 
           <View style={styles.sectionRow}>
             <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>

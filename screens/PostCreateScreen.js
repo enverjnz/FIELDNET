@@ -18,9 +18,12 @@ export default function PostCreateScreen({ teamId, post = null, onBack, onSucces
 
   const [title, setTitle] = useState(post?.title ?? '');
   const [content, setContent] = useState(post?.content ?? '');
-  const [category, setCategory] = useState(
-    POST_CATEGORIES.includes(post?.category) ? post.category : POST_CATEGORIES[0],
-  );
+  const [category, setCategory] = useState(() => {
+    if (post?.category && POST_CATEGORIES.includes(post.category)) {
+      return post.category;
+    }
+    return null;
+  });
   const [imageUri, setImageUri] = useState(post?.image_url ?? null);
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -145,13 +148,15 @@ export default function PostCreateScreen({ teamId, post = null, onBack, onSucces
           </View>
 
           <View style={styles.fieldWrap}>
-            <Text style={styles.fieldLabel}>KATEGORIE *</Text>
+            <Text style={styles.fieldLabel}>KATEGORIE (OPTIONAL)</Text>
             <TouchableOpacity
               style={styles.selectTrigger}
               onPress={() => setCategoryOpen(true)}
               activeOpacity={0.8}
             >
-              <Text style={styles.selectText}>{category}</Text>
+              <Text style={[styles.selectText, !category && styles.selectPlaceholder]}>
+                {category ?? 'Keine Kategorie'}
+              </Text>
               <ChevronDown size={18} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
@@ -208,6 +213,18 @@ export default function PostCreateScreen({ teamId, post = null, onBack, onSucces
         <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setCategoryOpen(false)}>
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Kategorie wählen</Text>
+            <TouchableOpacity
+              style={[styles.modalItem, category === null && styles.modalItemActive]}
+              onPress={() => {
+                setCategory(null);
+                setCategoryOpen(false);
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.modalItemText, category === null && styles.modalItemTextActive]}>
+                Keine Kategorie
+              </Text>
+            </TouchableOpacity>
             {POST_CATEGORIES.map((item) => (
               <TouchableOpacity
                 key={item}

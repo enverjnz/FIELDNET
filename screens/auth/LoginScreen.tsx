@@ -12,9 +12,12 @@ import {
   ActivityIndicator,
   Image,
   ImageBackground,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Eye, EyeOff } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
+import { isEmailConfirmed } from '../../lib/authRedirect';
 import {
   AUTH_BUTTON_SIDE_INSET,
   AUTH_CONTENT_INDENT,
@@ -54,6 +57,15 @@ export default function LoginScreen({ onBack, onSuccess, onNeedsVerification, on
         password,
       });
       if (error) throw error;
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || !isEmailConfirmed(user)) {
+        onNeedsVerification?.(email.trim());
+        return;
+      }
+
       onSuccess();
     } catch (err: any) {
       const raw = err?.message ?? '';
@@ -104,6 +116,10 @@ export default function LoginScreen({ onBack, onSuccess, onNeedsVerification, on
           />
         </View>
 
+        <KeyboardAvoidingView
+          style={styles.formScroll}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
         <ScrollView
           style={styles.formScroll}
           contentContainerStyle={styles.formContent}
@@ -187,6 +203,7 @@ export default function LoginScreen({ onBack, onSuccess, onNeedsVerification, on
             </Text>
           </TouchableOpacity>
         </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </ImageBackground>
   );

@@ -9,6 +9,8 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Hash, Zap, X } from 'lucide-react-native';
 import { validateTickerAccess, TickerGame } from '../lib/validateTickerAccess';
@@ -65,6 +67,10 @@ export default function TickerCodeScreen({ onBack, onSuccess }: Props) {
         <View style={{ width: 22 }} />
       </View>
 
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
       <ScrollView
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
@@ -114,6 +120,7 @@ export default function TickerCodeScreen({ onBack, onSuccess }: Props) {
           )}
         </TouchableOpacity>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

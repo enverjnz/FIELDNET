@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, Image, TouchableOpacity, Share, Alert } from 'react-native';
-import { Edit2, Heart, MessageCircle, Share2 } from 'lucide-react-native';
+import { MoreVertical, Heart, MessageCircle, Share2 } from 'lucide-react-native';
 import { formatPostDate } from '../lib/teamPosts';
 import { countCommentsForPost } from '../lib/postComments';
 import { fetchPostLikeSummary, togglePostLike } from '../lib/postLikes';
@@ -31,7 +31,9 @@ export default function PostCard({ post, showTeamHeader = false, showActions = f
   const [likeLoading, setLikeLoading] = useState(false);
   const [commentCount, setCommentCount] = useState(0);
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const categoryStyle = categoryStyles[post.category] ?? categoryStyles.News;
+  const categoryStyle = post.category
+    ? (categoryStyles[post.category] ?? categoryStyles.News)
+    : null;
   const teamInfo = showTeamHeader ? (post.teams ?? team) : null;
   const teamLabel = teamInfo?.short_name ?? teamInfo?.name ?? 'Team';
   const dateStr = formatPostDate(post.created_at);
@@ -106,6 +108,19 @@ export default function PostCard({ post, showTeamHeader = false, showActions = f
     }
   };
 
+  const handleMenuPress = () => {
+    if (!onEdit) return;
+    Alert.alert('Beitrag', post.title, [
+      { text: 'Abbrechen', style: 'cancel' },
+      {
+        text: 'Bearbeiten',
+        onPress: () => onEdit(post),
+      },
+    ]);
+  };
+
+  const showCardTop = categoryStyle || (!showTeamHeader && dateStr) || onEdit;
+
   const card = (
     <View style={[styles.card, showActions && styles.cardWithActions]}>
       {showTeamHeader && teamInfo ? (
@@ -118,12 +133,17 @@ export default function PostCard({ post, showTeamHeader = false, showActions = f
         </View>
       ) : null}
 
+      {showCardTop ? (
       <View style={styles.cardTop}>
-        <View style={[styles.categoryBadge, { backgroundColor: categoryStyle.bg }]}>
-          <Text style={[styles.categoryText, { color: categoryStyle.color }]}>
-            {(post.category ?? 'News').toUpperCase()}
-          </Text>
-        </View>
+        {categoryStyle ? (
+          <View style={[styles.categoryBadge, { backgroundColor: categoryStyle.bg }]}>
+            <Text style={[styles.categoryText, { color: categoryStyle.color }]}>
+              {post.category.toUpperCase()}
+            </Text>
+          </View>
+        ) : (
+          <View />
+        )}
         <View style={styles.cardTopRight}>
           {!showTeamHeader && dateStr ? (
             <Text style={styles.dateText}>{dateStr}</Text>
@@ -133,16 +153,18 @@ export default function PostCard({ post, showTeamHeader = false, showActions = f
               style={styles.editBtn}
               onPress={(e) => {
                 e?.stopPropagation?.();
-                onEdit(post);
+                handleMenuPress();
               }}
               hitSlop={8}
               activeOpacity={0.75}
+              accessibilityLabel="Beitragsoptionen"
             >
-              <Edit2 size={14} color={colors.text} />
+              <MoreVertical size={16} color={colors.text} />
             </TouchableOpacity>
           ) : null}
         </View>
       </View>
+      ) : null}
 
       <Text style={styles.title} numberOfLines={2}>{post.title}</Text>
       <Text style={styles.content} numberOfLines={showTeamHeader ? 4 : 6}>{post.content}</Text>

@@ -9,6 +9,8 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { ArrowLeft, Hash, Trophy } from 'lucide-react-native';
 import { verifyAndRedeemInvoiceCode } from '../lib/invoiceCode';
@@ -60,6 +62,10 @@ export default function InvoiceCodeScreen({ onBack, onSuccess }: Props) {
         <Text style={styles.backBtnText}>Zurück</Text>
       </TouchableOpacity>
 
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
       <ScrollView
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
@@ -117,6 +123,7 @@ export default function InvoiceCodeScreen({ onBack, onSuccess }: Props) {
           </Text>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

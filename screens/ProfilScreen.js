@@ -21,6 +21,7 @@ import TeamProfileScreen from './TeamProfileScreen';
 import PlayerProfileScreen from './PlayerProfileScreen';
 import FullscreenImageModal from '../components/FullscreenImageModal';
 import ProfileGallery from '../components/ProfileGallery';
+import PlayerInjuredBadge from '../components/PlayerInjuredBadge';
 import { useTheme } from '../context/ThemeContext';
 import { createProfilStyles } from '../theme/profilStyles';
 
@@ -503,6 +504,10 @@ export default function ProfilScreen({ refreshKey = 0, onProfileSaved }) {
                 {profile.role === 'player' ? '🏈 Spieler' : profile.role === 'fan' ? '⭐ Fan' : '🎯 Coach'}
               </Text>
             </View>
+
+            {profile.role === 'player' && profile.is_injured ? (
+              <PlayerInjuredBadge />
+            ) : null}
 
             <Text style={styles.fullName}>{fullName}</Text>
             {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}

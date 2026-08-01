@@ -16,7 +16,7 @@ export type TeamPost = {
   title: string;
   content: string;
   image_url: string | null;
-  category: string;
+  category: string | null;
   created_at: string;
 };
 
@@ -78,7 +78,7 @@ export type CreateTeamPostInput = {
   teamId: string;
   title: string;
   content: string;
-  category: PostCategory;
+  category?: PostCategory | null;
   imageUrl?: string | null;
 };
 
@@ -93,7 +93,7 @@ export async function createTeamPost(input: CreateTeamPostInput): Promise<TeamPo
       author_id: user.id,
       title: input.title.trim(),
       content: input.content.trim(),
-      category: input.category,
+      category: input.category ?? null,
       image_url: input.imageUrl?.trim() || null,
     })
     .select(POST_SELECT)
@@ -107,7 +107,7 @@ export type UpdateTeamPostInput = {
   postId: string;
   title: string;
   content: string;
-  category: PostCategory;
+  category?: PostCategory | null;
   imageUrl?: string | null;
 };
 
@@ -117,7 +117,7 @@ export async function updateTeamPost(input: UpdateTeamPostInput): Promise<TeamPo
     .update({
       title: input.title.trim(),
       content: input.content.trim(),
-      category: input.category,
+      category: input.category ?? null,
       image_url: input.imageUrl?.trim() || null,
     })
     .eq('id', input.postId)

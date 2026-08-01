@@ -1,6 +1,5 @@
 import { supabase } from './supabase';
-import type { TickerEventType } from './tickerEvents';
-import { insertTickerEvents } from './tickerEvents';
+import { insertTickerEvents, applyProfileStatDeltas } from './tickerEvents';
 
 type GameRow = {
   id: number;
@@ -13,15 +12,6 @@ type GameRow = {
 type TickerEventAgg = {
   event_type: string;
   profile_id: string | null;
-};
-
-const PROFILE_STAT_FIELD: Partial<Record<TickerEventType, string>> = {
-  touchdown: 'touchdowns',
-  field_goal: 'field_goals',
-  extra_point: 'extra_points',
-  two_point_conversion: 'two_point_conversions',
-  interception: 'interceptions',
-  sack: 'sacks',
 };
 
 async function ensureTeamStats(teamId: string) {
@@ -133,7 +123,7 @@ export async function finishGame(
     .select('event_type, profile_id')
     .eq('games_idgame', gameId);
 
-  const skipTypes = new Set(['game_finished', 'game_started', 'quarter_marker', 'halftime']);
+  const skipTypes = new Set(['game_finished', 'game_started', 'quarter_marker', 'halftime', 'timeout', 'fumble']);
   const agg = ((events ?? []) as TickerEventAgg[]).filter((e) => !skipTypes.has(e.event_type));
   const profileIds = new Set(
     agg.map((e) => e.profile_id).filter(Boolean) as string[],
@@ -153,10 +143,7 @@ export async function finishGame(
     };
 
     for (const ev of agg.filter((e) => e.profile_id === profileId)) {
-      const field = PROFILE_STAT_FIELD[ev.event_type as TickerEventType];
-      if (field) {
-        deltas[field] = (deltas[field] ?? 0) + 1;
-      }
+      applyProfileStatDeltas(deltas, ev.event_type);
     }
 
     const updatePayload: Record<string, number> = {};

@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   Image,
 } from 'react-native';
-import { Search, Check, X, Star } from 'lucide-react-native';
+import { Search, Check, X } from 'lucide-react-native';
 import { searchTeams, teamSearchMeta, teamSearchLogoUrl, type TeamSearchResult } from '../../../lib/teamSearch';
 import { OnboardingData } from '../PlayerOnboardingFlow';
 
@@ -89,10 +89,6 @@ export default function FanStep3_Interests({ data, update, onNext, onBack }: Pro
     update({
       followedTeams: [...followedTeams, { id: team.id, name: team.name }],
     });
-  };
-
-  const removeTeam = (teamId: string) => {
-    update({ followedTeams: followedTeams.filter((t) => t.id !== teamId) });
   };
 
   const clearSearch = () => {
@@ -183,20 +179,6 @@ export default function FanStep3_Interests({ data, update, onNext, onBack }: Pro
         <Text style={styles.emptyText}>Kein Team gefunden für „{query.trim()}“</Text>
       )}
 
-      {followedTeams.length > 0 && (
-        <View style={styles.selectedList}>
-          {followedTeams.map((team) => (
-            <View key={team.id} style={styles.selectedBadge}>
-              <Star size={15} color="#1A2F6E" />
-              <Text style={styles.selectedText}>{team.name}</Text>
-              <TouchableOpacity onPress={() => removeTeam(team.id)} hitSlop={8}>
-                <X size={16} color="#7C8BA1" />
-              </TouchableOpacity>
-            </View>
-          ))}
-        </View>
-      )}
-
       <Text style={styles.skipHint}>
         Du kannst diese Angaben auch später in deinem Profil ergänzen.
       </Text>
@@ -279,13 +261,6 @@ const styles = StyleSheet.create({
   dropdownText: { flex: 1 },
   teamName: { color: B, fontSize: 14, fontWeight: '700' },
   teamTown: { color: '#6B7280', fontSize: 12, marginTop: 2 },
-  selectedList: { gap: 8, marginTop: 12 },
-  selectedBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#E8EDF8', borderRadius: 10, padding: 12,
-    borderWidth: 1.5, borderColor: B,
-  },
-  selectedText: { color: B, fontSize: 13, fontWeight: '600', flex: 1 },
   skipHint: { color: '#9CA3AF', fontSize: 12, marginTop: 16, marginBottom: 24 },
   row: { flexDirection: 'row', gap: 12 },
   btn: { flex: 1, backgroundColor: R, borderRadius: 14, paddingVertical: 16, alignItems: 'center' },

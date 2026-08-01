@@ -43,6 +43,7 @@ import {
 import FullscreenImageModal from '../components/FullscreenImageModal';
 import ProfileGallery from '../components/ProfileGallery';
 import ReportContentModal from '../components/ReportContentModal';
+import PlayerInjuredBadge from '../components/PlayerInjuredBadge';
 
 const B = '#1A2F6E';
 const R = '#C01830';
@@ -338,6 +339,9 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
                     : 'Nutzer'}
             </Text>
           </View>
+          {profile.role === 'player' && profile.is_injured ? (
+            <PlayerInjuredBadge />
+          ) : null}
           <Text style={styles.fullName}>{fullName}</Text>
           {profile.position ? (
             <View style={styles.positionPill}>
@@ -478,6 +482,7 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
               <StatNumCard label="2-PT Conv." value={playerStats.two_point_conversions} />
               <StatNumCard label="Interceptions" value={playerStats.interceptions} />
               <StatNumCard label="Sacks" value={playerStats.sacks} />
+              <StatNumCard label="Fumble Recoveries" value={playerStats.fumble_recoveries} />
             </View>
           </>
         )}

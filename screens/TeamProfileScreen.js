@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity,
   SafeAreaView, StatusBar, ScrollView, ActivityIndicator,
   Alert, Image, Modal, RefreshControl,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -29,6 +30,7 @@ import {
   countTeamOpenGames,
 } from '../lib/leagueTeams';
 import { fetchPostsForTeam } from '../lib/teamPosts';
+import { fetchTeamSponsors, openSponsorWebsite } from '../lib/teamSponsors';
 import PostCard from '../components/PostCard';
 import PostCreateScreen from './PostCreateScreen';
 import FullscreenImageModal from '../components/FullscreenImageModal';
@@ -307,6 +309,7 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
   const [followMessage, setFollowMessage] = useState(null);
   const [posts, setPosts] = useState([]);
   const [postsLoading, setPostsLoading] = useState(false);
+  const [sponsors, setSponsors] = useState([]);
   const [leavingTeam, setLeavingTeam] = useState(false);
 
   const onRefresh = async () => {
@@ -426,6 +429,13 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
     setKader(kaderData ?? []);
     setGames(gamesData ?? []);
     setTeamStats(statsData ?? null);
+    try {
+      const sponsorList = await fetchTeamSponsors(teamId);
+      setSponsors(sponsorList);
+    } catch (e) {
+      console.warn('TeamProfile sponsors:', e?.message);
+      setSponsors([]);
+    }
     await loadFollowState();
     await loadPosts();
     setLoading(false);
@@ -844,6 +854,10 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
         )}
       </View>
 
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
@@ -1114,6 +1128,39 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
           )}
         </View>
 
+        {/* SPONSOREN */}
+        {!isEditing && sponsors.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>SPONSOREN</Text>
+            <View style={styles.sponsorsGrid}>
+              {sponsors.map((sponsor) => (
+                <TouchableOpacity
+                  key={sponsor.id}
+                  style={styles.sponsorCard}
+                  onPress={() => openSponsorWebsite(sponsor.website_url)}
+                  activeOpacity={sponsor.website_url ? 0.8 : 1}
+                  disabled={!sponsor.website_url}
+                >
+                  {sponsor.logo_url ? (
+                    <Image
+                      source={{ uri: sponsor.logo_url }}
+                      style={styles.sponsorLogo}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <View style={styles.sponsorLogoPlaceholder}>
+                      <Text style={styles.sponsorLogoInitial}>
+                        {(sponsor.name ?? '?').slice(0, 1).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                  <Text style={styles.sponsorName} numberOfLines={2}>{sponsor.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
+
         {/* BILANZ */}
         {!isEditing && teamStats && (teamStats.games_played > 0 || teamStats.wins > 0 || teamStats.losses > 0) && (
           <>
@@ -1287,6 +1334,7 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
 
         <View style={{ height: 60 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* SPIELER PROFIL MODAL */}
       <Modal

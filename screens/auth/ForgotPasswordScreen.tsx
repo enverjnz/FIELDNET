@@ -12,6 +12,8 @@ import {
   ActivityIndicator,
   Image,
   ImageBackground,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { requestPasswordResetEmail } from '../../lib/passwordReset';
 import {
@@ -76,6 +78,10 @@ export default function ForgotPasswordScreen({ initialEmail = '', onBack, onEmai
           />
         </View>
 
+        <KeyboardAvoidingView
+          style={styles.formScroll}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
         <ScrollView
           style={styles.formScroll}
           contentContainerStyle={styles.formContent}
@@ -141,6 +147,7 @@ export default function ForgotPasswordScreen({ initialEmail = '', onBack, onEmai
             </>
           )}
         </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </ImageBackground>
   );

@@ -16,8 +16,8 @@ export function createTickerStyles(c, teamSide = 'home') {
   const sendBtnBg = isDark
     ? (isHome ? '#3B5080' : '#8B2030')
     : teamColor;
-  const chipSelectedBg = teamColor;
-  const chipTextSelected = '#FFFFFF';
+  const quarterBtnActiveBg = isDark ? '#64748B' : '#9CA3AF';
+  const quarterBtnActiveText = '#FFFFFF';
 
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.background },
@@ -110,22 +110,22 @@ export function createTickerStyles(c, teamSide = 'home') {
       paddingVertical: 10,
       borderRadius: 10,
       alignItems: 'center',
-      backgroundColor: c.chipBg,
+      backgroundColor: c.surface,
       borderWidth: 1.5,
       borderColor: c.border,
     },
     quarterBtnActive: {
-      backgroundColor: chipSelectedBg,
-      borderColor: chipSelectedBg,
+      backgroundColor: quarterBtnActiveBg,
+      borderColor: quarterBtnActiveBg,
     },
     quarterBtnText: {
-      color: c.chipText,
+      color: c.textMuted,
       fontSize: 13,
       fontWeight: '800',
       letterSpacing: 0.5,
     },
     quarterBtnTextActive: {
-      color: chipTextSelected,
+      color: quarterBtnActiveText,
     },
     queueBanner: {
       backgroundColor: queueBg,

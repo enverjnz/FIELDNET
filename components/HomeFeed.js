@@ -17,6 +17,7 @@ import {
   fetchLatestLeagueGames,
   formatGameResultDate,
 } from '../lib/leagueContent';
+import { fetchManagedTeamIds, canManageTeamPost } from '../lib/teamManagers';
 import PostCard from './PostCard';
 
 function TeamGameLogo({ uri, label, styles }) {
@@ -126,7 +127,7 @@ function createStyles(c) {
   });
 }
 
-export default function HomeFeed({ onOpenTimeline, onPullRefresh }) {
+export default function HomeFeed({ onOpenTimeline, onPullRefresh, onEditPost }) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -141,6 +142,21 @@ export default function HomeFeed({ onOpenTimeline, onPullRefresh }) {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [managedTeamIds, setManagedTeamIds] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    fetchManagedTeamIds()
+      .then((ids) => {
+        if (active) setManagedTeamIds(ids);
+      })
+      .catch(() => {
+        if (active) setManagedTeamIds([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const loadContent = useCallback(async ({ silent = false } = {}) => {
     if (!isFilterReady || !selectedLeagueId || !selectedSeasonId) {
@@ -295,7 +311,17 @@ export default function HomeFeed({ onOpenTimeline, onPullRefresh }) {
       ) : (
         <View style={styles.postsWrap}>
           {posts.map((post) => (
-            <PostCard key={post.id} post={post} showTeamHeader showActions />
+            <PostCard
+              key={post.id}
+              post={post}
+              showTeamHeader
+              showActions
+              onEdit={
+                onEditPost && canManageTeamPost(post.team_id, managedTeamIds)
+                  ? onEditPost
+                  : undefined
+              }
+            />
           ))}
         </View>
       )}

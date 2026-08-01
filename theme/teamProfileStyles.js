@@ -267,6 +267,52 @@ export function createTeamProfileStyles(c) {
     },
     emptyGamesText: { color: c.textMuted, fontSize: 13 },
 
+    sponsorsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+      marginBottom: 18,
+    },
+    sponsorCard: {
+      width: '47%',
+      backgroundColor: c.card,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: c.border,
+      padding: 14,
+      alignItems: 'center',
+    },
+    sponsorLogo: {
+      width: 72,
+      height: 72,
+      borderRadius: 14,
+      marginBottom: 10,
+      backgroundColor: c.surface,
+    },
+    sponsorLogoPlaceholder: {
+      width: 72,
+      height: 72,
+      borderRadius: 14,
+      marginBottom: 10,
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sponsorLogoInitial: {
+      color: c.text,
+      fontSize: 24,
+      fontWeight: '900',
+    },
+    sponsorName: {
+      color: c.text,
+      fontSize: 12,
+      fontWeight: '700',
+      textAlign: 'center',
+      lineHeight: 16,
+    },
+
     gamesCarousel: { marginHorizontal: -20, marginBottom: 18 },
     gamesCarouselContent: { paddingHorizontal: 20 },
 

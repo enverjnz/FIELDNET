@@ -4,7 +4,7 @@ import {
   SafeAreaView, StatusBar, ActivityIndicator,
   Image, ScrollView, RefreshControl, Alert,
 } from 'react-native';
-import { ArrowLeft, Users, Calendar, Zap, ChevronRight, MapPin, Hash, Copy, Check, Trash2, UserMinus, X, Newspaper } from 'lucide-react-native';
+import { ArrowLeft, Users, Calendar, Zap, ChevronRight, MapPin, Hash, Copy, Check, Trash2, UserMinus, X, Newspaper, Handshake } from 'lucide-react-native';
 import { Clipboard } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { acceptMembershipRequest, rejectMembershipRequest } from '../lib/teamMembership';
@@ -14,6 +14,8 @@ import TeamProfileScreen from './TeamProfileScreen';
 import GameCreateScreen from './GameCreateScreen';
 import PostCreateScreen from './PostCreateScreen';
 import TimelineScreen from './TimelineScreen';
+import TeamSponsorsScreen from './TeamSponsorsScreen';
+import { countTeamSponsors } from '../lib/teamSponsors';
 
 export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onOpenLiveTicker, onTeamLeft }) {
   const { colors } = useTheme();
@@ -29,8 +31,9 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onOp
   const [deletingGameId, setDeletingGameId] = useState(null);
   const [leavingTeam, setLeavingTeam] = useState(false);
   const [actingOnId, setActingOnId] = useState(null);
-  const [activeScreen, setActiveScreen] = useState(null); // null | 'profile' | 'game' | 'post' | 'timeline'
+  const [activeScreen, setActiveScreen] = useState(null); // null | 'profile' | 'game' | 'post' | 'timeline' | 'sponsors'
   const [timelineGameId, setTimelineGameId] = useState(null);
+  const [sponsorCount, setSponsorCount] = useState(0);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -142,6 +145,12 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onOp
     setTeam(teamData ?? null);
     setGames(gamesData ?? []);
     setPendingRequests(requestsData ?? []);
+    try {
+      const count = await countTeamSponsors(teamId);
+      setSponsorCount(count);
+    } catch {
+      setSponsorCount(0);
+    }
     setLoading(false);
   }, [teamId]);
 
@@ -222,6 +231,15 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onOp
       <TimelineScreen
         gameId={timelineGameId}
         onBack={() => { setActiveScreen(null); setTimelineGameId(null); }}
+      />
+    );
+  }
+
+  if (activeScreen === 'sponsors') {
+    return (
+      <TeamSponsorsScreen
+        teamId={teamId}
+        onBack={() => { setActiveScreen(null); loadData(); }}
       />
     );
   }
@@ -380,6 +398,28 @@ export default function TeamDashboardScreen({ teamId, onBack, onOpenTicker, onOp
           <View style={styles.actionText}>
             <Text style={styles.actionTitle}>Beitrag erstellen</Text>
             <Text style={styles.actionSub}>News, Spielberichte & Updates veröffentlichen</Text>
+          </View>
+          <ChevronRight size={20} color={colors.textMuted} />
+        </TouchableOpacity>
+
+        {/* SPONSOREN */}
+        <TouchableOpacity
+          style={styles.actionCard}
+          onPress={() => setActiveScreen('sponsors')}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.actionIcon, { backgroundColor: colors.card }]}>
+            <Handshake size={26} color={colors.text} />
+          </View>
+          <View style={styles.actionText}>
+            <Text style={styles.actionTitle}>
+              {sponsorCount > 0 ? 'Sponsoren bearbeiten' : 'Sponsoren hinzufügen'}
+            </Text>
+            <Text style={styles.actionSub}>
+              {sponsorCount > 0
+                ? `${sponsorCount} Sponsor${sponsorCount === 1 ? '' : 'en'} im Teamprofil sichtbar`
+                : 'Logos und Webseiten für das Teamprofil pflegen'}
+            </Text>
           </View>
           <ChevronRight size={20} color={colors.textMuted} />
         </TouchableOpacity>

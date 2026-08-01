@@ -13,21 +13,29 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.enverjnz.FIELDNET"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/fieldnet_logo.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.enverjnz.FIELDNET"
     },
     "web": {
       "favicon": "./assets/fieldnet_logo.png"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      "@react-native-community/datetimepicker"
     ],
-    "scheme": "fieldnet"
+    "scheme": "fieldnet",
+    "extra": {
+      "eas": {
+        "projectId": "642aec23-08e6-4f95-b78c-7b86dcdda655"
+      }
+    }
   }
 }

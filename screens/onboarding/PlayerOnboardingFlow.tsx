@@ -8,10 +8,12 @@ import {
   Alert,
   Image,
   TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { CheckCircle } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
-import { getEmailRedirectUrl } from '../../lib/authRedirect';
+import { isEmailConfirmed } from '../../lib/authRedirect';
 import { completeOnboardingForUser } from '../../lib/completeOnboarding';
 import { clearPendingOnboarding, savePendingOnboarding } from '../../lib/pendingOnboarding';
 import VerifyEmailScreen from '../auth/VerifyEmailScreen';
@@ -194,7 +196,6 @@ export default function PlayerOnboardingFlow({ onComplete, onBack }: Props) {
       password,
       options: {
         data: { role },
-        emailRedirectTo: getEmailRedirectUrl(),
       },
     });
     if (error) throw error;
@@ -227,6 +228,12 @@ export default function PlayerOnboardingFlow({ onComplete, onBack }: Props) {
         return;
       }
 
+      if (!isEmailConfirmed(user)) {
+        await savePendingOnboarding({ email, data });
+        setVerificationEmail(email);
+        return;
+      }
+
       await completeOnboardingForUser(user.id, data);
       setDoneAs('player');
     } catch (err: any) {
@@ -248,6 +255,12 @@ export default function PlayerOnboardingFlow({ onComplete, onBack }: Props) {
         return;
       }
 
+      if (!isEmailConfirmed(user)) {
+        await savePendingOnboarding({ email, data });
+        setVerificationEmail(email);
+        return;
+      }
+
       await completeOnboardingForUser(user.id, data);
       setDoneAs('fan');
     } catch (err: any) {
@@ -264,6 +277,12 @@ export default function PlayerOnboardingFlow({ onComplete, onBack }: Props) {
       const { user, needsVerification } = await createAccount(email, password, 'coach');
 
       if (needsVerification) {
+        await savePendingOnboarding({ email, data });
+        setVerificationEmail(email);
+        return;
+      }
+
+      if (!isEmailConfirmed(user)) {
         await savePendingOnboarding({ email, data });
         setVerificationEmail(email);
         return;
@@ -372,9 +391,12 @@ export default function PlayerOnboardingFlow({ onComplete, onBack }: Props) {
       </View>
       <ProgressBar step={step} total={totalSteps} />
 
-      <View style={styles.content}>
+      <KeyboardAvoidingView
+        style={styles.content}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         {renderStep()}
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

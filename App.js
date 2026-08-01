@@ -51,6 +51,7 @@ import { getCoachVerwaltungState, CoachPendingError } from './lib/invoiceCode';
 import { hasUnreadChats, subscribeToIncomingMessages } from './lib/chat';
 import HomeFeed from './components/HomeFeed';
 import MasterFilterBar from './components/MasterFilterBar';
+import PostCreateScreen from './screens/PostCreateScreen';
 
 
 export default function App() {
@@ -86,6 +87,8 @@ export default function App() {
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const [sucheResetKey, setSucheResetKey]         = useState(0);
   const [profilResetKey, setProfilResetKey]         = useState(0);
+  const [homeFeedRefreshKey, setHomeFeedRefreshKey] = useState(0);
+  const [editingHomePost, setEditingHomePost]       = useState(null);
   const [isMenuOpen, setIsMenuOpen]                 = useState(false);
   const [pendingChatConversationId, setPendingChatConversationId] = useState(null);
   const [dmChatOpen, setDmChatOpen] = useState(false);
@@ -120,7 +123,14 @@ export default function App() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user || !isEmailConfirmed(user)) {
+    if (!user) {
+      setAuthState('landing');
+      return false;
+    }
+
+    if (!isEmailConfirmed(user)) {
+      if (user.email) setVerifyEmail(user.email);
+      setAuthState('verify-email');
       return false;
     }
 
@@ -297,9 +307,9 @@ export default function App() {
       if (session?.user && isEmailConfirmed(session.user)) {
         await finishPendingOnboardingIfNeeded();
         setAuthState('app');
-      } else if (session?.user) {
-        await supabase.auth.signOut();
-        setAuthState('landing');
+      } else if (session?.user?.email) {
+        setVerifyEmail(session.user.email);
+        setAuthState('verify-email');
       }
       await loadRole();
       setAuthReady(true);
@@ -328,6 +338,9 @@ export default function App() {
         } else if (session.user.email) {
           setVerifyEmail(session.user.email);
           setAuthState('verify-email');
+        } else {
+          await supabase.auth.signOut();
+          setAuthState('landing');
         }
       } else if (event === 'SIGNED_OUT') {
         passwordRecoveryRef.current = false;
@@ -352,6 +365,28 @@ export default function App() {
 
     return () => subscription.remove();
   }, [handleAuthRedirect]);
+
+  useEffect(() => {
+    if (authState !== 'app' || !authReady) return undefined;
+
+    let active = true;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!active) return;
+      if (!user) {
+        setAuthState('landing');
+        return;
+      }
+      if (!isEmailConfirmed(user)) {
+        if (user.email) setVerifyEmail(user.email);
+        setAuthState('verify-email');
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [authState, authReady]);
 
   useEffect(() => {
     if (authState !== 'app') return;
@@ -600,8 +635,10 @@ export default function App() {
 
   const renderHomeTab = () => (
     <HomeFeed
+      key={homeFeedRefreshKey}
       onOpenTimeline={(game) => setSelectedGame(game)}
       onPullRefresh={handleHomeRefresh}
+      onEditPost={setEditingHomePost}
     />
   );
 
@@ -664,7 +701,7 @@ export default function App() {
       <LoginScreen
         onBack={() => setAuthState('landing')}
         onSuccess={() => {
-          finishPendingOnboardingIfNeeded().finally(() => setAuthState('app'));
+          enterAppIfReady();
         }}
         onNeedsVerification={(email) => {
           setVerifyEmail(email);
@@ -683,7 +720,9 @@ export default function App() {
       <VerifyEmailScreen
         email={verifyEmail}
         onBack={() => setAuthState('login')}
-        onVerified={() => setAuthState('app')}
+        onVerified={() => {
+          enterAppIfReady();
+        }}
       />
     );
   }
@@ -702,7 +741,7 @@ export default function App() {
       <ResetPasswordScreen
         onComplete={() => {
           passwordRecoveryRef.current = false;
-          finishPendingOnboardingIfNeeded().finally(() => setAuthState('app'));
+          enterAppIfReady();
         }}
       />
     );
@@ -711,7 +750,9 @@ export default function App() {
   if (authState === 'register') {
     return (
       <PlayerOnboardingFlow
-        onComplete={() => setAuthState('app')}
+        onComplete={() => {
+          enterAppIfReady();
+        }}
         onBack={() => setAuthState('landing')}
       />
     );
@@ -843,6 +884,21 @@ export default function App() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* BEITRAG BEARBEITEN (HOME) */}
+      {editingHomePost && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background, zIndex: 210 }}>
+          <PostCreateScreen
+            teamId={editingHomePost.team_id}
+            post={editingHomePost}
+            onBack={() => setEditingHomePost(null)}
+            onSuccess={() => {
+              setEditingHomePost(null);
+              setHomeFeedRefreshKey((k) => k + 1);
+            }}
+          />
+        </View>
+      )}
 
       {/* EINSTELLUNGEN */}
       {showSettings && !showDeleteProfile && (

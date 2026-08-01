@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
@@ -9,12 +10,23 @@ import {
   ActivityIndicator,
   Alert,
   ImageBackground,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Mail } from 'lucide-react-native';
-import { resendSignupConfirmation } from '../../lib/authRedirect';
+import {
+  resendSignupConfirmation,
+  verifySignupEmailCode,
+  isEmailConfirmed,
+} from '../../lib/authRedirect';
 import { finishPendingOnboardingIfNeeded } from '../../lib/completeOnboarding';
 import { supabase } from '../../lib/supabase';
-import { authBackgroundStyles } from './authScreenLayout';
+import {
+  AUTH_BUTTON_SIDE_INSET,
+  AUTH_CONTENT_INDENT,
+  authBackgroundStyles,
+} from './authScreenLayout';
 
 type Props = {
   email: string;
@@ -23,11 +35,15 @@ type Props = {
 };
 
 const RESEND_COOLDOWN_SECONDS = 30;
+const CODE_LENGTH = 6;
 
 export default function VerifyEmailScreen({ email, onBack, onVerified }: Props) {
+  const [code, setCode] = useState('');
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
-  const [checking, setChecking] = useState(false);
+  const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (resendCooldown <= 0) return undefined;
@@ -39,37 +55,42 @@ export default function VerifyEmailScreen({ email, onBack, onVerified }: Props) 
     return () => clearInterval(timer);
   }, [resendCooldown]);
 
-  useEffect(() => {
-    let active = true;
+  const handleCodeChange = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, CODE_LENGTH);
+    setCode(digits);
+    if (codeError) setCodeError(null);
+  };
 
-    const finishIfConfirmed = async () => {
+  const handleVerify = async () => {
+    if (verifying) return;
+
+    if (code.length !== CODE_LENGTH) {
+      setCodeError(`Bitte gib den ${CODE_LENGTH}-stelligen Code ein.`);
+      return;
+    }
+
+    setVerifying(true);
+    try {
+      const { error } = await verifySignupEmailCode(email, code);
+      if (error) throw new Error(error);
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!active || !user?.email_confirmed_at) return;
-
-      setChecking(true);
-      try {
-        const result = await finishPendingOnboardingIfNeeded();
-        if (active) onVerified(result.role);
-      } finally {
-        if (active) setChecking(false);
+      if (!user || !isEmailConfirmed(user)) {
+        throw new Error('E-Mail konnte nicht bestätigt werden. Bitte versuche es erneut.');
       }
-    };
 
-    finishIfConfirmed();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user?.email_confirmed_at) {
-        finishIfConfirmed();
-      }
-    });
-
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-    };
-  }, [onVerified]);
+      const result = await finishPendingOnboardingIfNeeded();
+      onVerified(result.role);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Bestätigung fehlgeschlagen.';
+      setCodeError(message);
+      Alert.alert('Fehler', message);
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const handleResend = async () => {
     if (resending || resendCooldown > 0) return;
@@ -79,9 +100,12 @@ export default function VerifyEmailScreen({ email, onBack, onVerified }: Props) 
       const { error } = await resendSignupConfirmation(email);
       if (error) throw new Error(error);
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
+      setCode('');
+      setCodeError(null);
+      inputRef.current?.focus();
       Alert.alert(
-        'E-Mail gesendet',
-        'Wir haben dir einen neuen Bestätigungslink geschickt. Tippe auf den Link in der Mail.',
+        'Code gesendet',
+        'Wir haben dir einen neuen Bestätigungscode per E-Mail geschickt.',
       );
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Senden fehlgeschlagen.';
@@ -101,58 +125,102 @@ export default function VerifyEmailScreen({ email, onBack, onVerified }: Props) 
       <SafeAreaView style={authBackgroundStyles.safe}>
         <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-        <View style={styles.content}>
-          <View style={styles.iconWrap}>
-            <Mail size={40} color="#FFFFFF" />
-          </View>
-
-          <Text style={styles.title}>E-Mail bestätigen</Text>
-          <Text style={styles.body}>
-            Wir haben einen Bestätigungslink an{'\n'}
-            <Text style={styles.email}>{email}</Text>
-            {'\n\n'}
-            geschickt. Öffne die E-Mail auf diesem Gerät und tippe auf den Link — du wirst
-            zurück in die App geleitet.
-          </Text>
-
-          {checking ? (
-            <ActivityIndicator color="#FFFFFF" style={styles.spinner} />
-          ) : null}
-
-          <TouchableOpacity
-            style={[
-              styles.secondaryBtn,
-              (resending || resendCooldown > 0) && styles.btnDisabled,
-            ]}
-            onPress={handleResend}
-            activeOpacity={0.85}
-            disabled={resending || resendCooldown > 0}
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <ScrollView
+            style={styles.flex}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
-            {resending ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : resendCooldown > 0 ? (
-              <Text style={styles.secondaryBtnText}>
-                Erneut senden in {resendCooldown}s
-              </Text>
-            ) : (
-              <Text style={styles.secondaryBtnText}>Link erneut senden</Text>
-            )}
-          </TouchableOpacity>
+            <View style={styles.iconWrap}>
+              <Mail size={40} color="#FFFFFF" />
+            </View>
 
-          <TouchableOpacity onPress={onBack} hitSlop={8} activeOpacity={0.7}>
-            <Text style={styles.backLink}>Zurück</Text>
-          </TouchableOpacity>
-        </View>
+            <Text style={styles.title}>E-Mail bestätigen</Text>
+            <Text style={styles.body}>
+              Wir haben einen {CODE_LENGTH}-stelligen Code an{'\n'}
+              <Text style={styles.email}>{email}</Text>
+              {'\n\n'}
+              gib ihn hier ein, um dein Konto zu aktivieren.
+            </Text>
+
+            <View style={styles.fieldWrap}>
+              <Text style={styles.label}>BESTÄTIGUNGSCODE</Text>
+              <TextInput
+                ref={inputRef}
+                style={[styles.codeInput, !!codeError && styles.inputError]}
+                value={code}
+                onChangeText={handleCodeChange}
+                placeholder="000000"
+                placeholderTextColor="rgba(26, 47, 110, 0.35)"
+                keyboardType="number-pad"
+                textContentType="oneTimeCode"
+                autoComplete="one-time-code"
+                maxLength={CODE_LENGTH}
+                returnKeyType="done"
+                onSubmitEditing={handleVerify}
+                autoFocus
+              />
+              {!!codeError && <Text style={styles.error}>{codeError}</Text>}
+            </View>
+
+            <TouchableOpacity
+              style={[styles.btnPrimary, verifying && styles.btnDisabled]}
+              onPress={handleVerify}
+              activeOpacity={0.85}
+              disabled={verifying}
+            >
+              {verifying ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.btnPrimaryText}>Code bestätigen</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.secondaryBtn,
+                (resending || resendCooldown > 0) && styles.btnDisabled,
+              ]}
+              onPress={handleResend}
+              activeOpacity={0.85}
+              disabled={resending || resendCooldown > 0}
+            >
+              {resending ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : resendCooldown > 0 ? (
+                <Text style={styles.secondaryBtnText}>
+                  Neuen Code senden in {resendCooldown}s
+                </Text>
+              ) : (
+                <Text style={styles.secondaryBtnText}>Neuen Code senden</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={onBack} hitSlop={8} activeOpacity={0.7}>
+              <Text style={styles.backLink}>Zurück</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </ImageBackground>
   );
 }
 
+const B = '#1A2F6E';
+const R = '#C01830';
+
 const styles = StyleSheet.create({
-  content: {
-    flex: 1,
+  flex: { flex: 1 },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 28,
+    paddingLeft: AUTH_CONTENT_INDENT,
+    paddingVertical: 24,
   },
   iconWrap: {
     width: 88,
@@ -184,8 +252,57 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '800',
   },
-  spinner: {
-    marginBottom: 16,
+  fieldWrap: {
+    marginBottom: 20,
+    marginRight: AUTH_BUTTON_SIDE_INSET - AUTH_CONTENT_INDENT,
+  },
+  label: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  codeInput: {
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    color: B,
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: 8,
+    textAlign: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+  },
+  inputError: {
+    borderColor: R,
+  },
+  error: {
+    color: '#FCA5A5',
+    fontSize: 11,
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  btnPrimary: {
+    backgroundColor: R,
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 12,
+    marginRight: AUTH_BUTTON_SIDE_INSET - AUTH_CONTENT_INDENT,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  btnPrimaryText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
   },
   secondaryBtn: {
     borderRadius: 14,
@@ -194,6 +311,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.45)',
     marginBottom: 24,
+    marginRight: AUTH_BUTTON_SIDE_INSET - AUTH_CONTENT_INDENT,
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
   secondaryBtnText: {

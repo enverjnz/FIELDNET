@@ -9,6 +9,9 @@ export type TickerEventType =
   | 'interception'
   | 'sack'
   | 'fumble'
+  | 'fumble_recovery'
+  | 'timeout'
+  | 'pick_six'
   | 'quarter_marker'
   | 'halftime'
   | 'game_started'
@@ -34,6 +37,9 @@ export const EVENT_LABELS: Record<string, string> = {
   interception: 'INTERCEPTION',
   sack: 'SACK',
   fumble: 'FUMBLE',
+  fumble_recovery: 'FUMBLE-RECOVERY',
+  timeout: 'TIMEOUT',
+  pick_six: 'PICK-6',
   quarter_marker: 'QUARTER',
   halftime: 'HALBZEIT',
   game_started: 'SPIELSTART',
@@ -47,6 +53,30 @@ export const QUARTER_EVENT_TYPES = new Set([
   'game_started',
   'game_finished',
 ]);
+
+/** Felder in profile_stats, die pro Ticker-Event um 1 erhöht werden. */
+export const PROFILE_STAT_FIELDS: Partial<Record<TickerEventType, string[]>> = {
+  touchdown: ['touchdowns'],
+  field_goal: ['field_goals'],
+  extra_point: ['extra_points'],
+  two_point_conversion: ['two_point_conversions'],
+  interception: ['interceptions'],
+  sack: ['sacks'],
+  fumble_recovery: ['fumble_recoveries'],
+  pick_six: ['touchdowns', 'interceptions'],
+};
+
+export function applyProfileStatDeltas(
+  deltas: Record<string, number>,
+  eventType: string,
+): void {
+  const fields = PROFILE_STAT_FIELDS[eventType as TickerEventType];
+  if (!fields) return;
+
+  for (const field of fields) {
+    deltas[field] = (deltas[field] ?? 0) + 1;
+  }
+}
 
 export async function insertTickerEvents(
   gameId: number,

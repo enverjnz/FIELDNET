@@ -171,6 +171,38 @@ export function isEmailConfirmed(user: User | null | undefined): boolean {
   return !!user?.email_confirmed_at;
 }
 
+export async function verifySignupEmailCode(
+  email: string,
+  token: string,
+): Promise<{ error?: string }> {
+  const trimmedEmail = email.trim();
+  const trimmedToken = token.trim().replace(/\s/g, '');
+
+  if (!trimmedEmail) return { error: 'E-Mail fehlt.' };
+  if (!/^\d{6}$/.test(trimmedToken)) {
+    return { error: 'Bitte gib den 6-stelligen Code aus der E-Mail ein.' };
+  }
+
+  const { error } = await supabase.auth.verifyOtp({
+    email: trimmedEmail,
+    token: trimmedToken,
+    type: 'signup',
+  });
+
+  if (error) {
+    const lower = error.message.toLowerCase();
+    if (lower.includes('expired')) {
+      return { error: 'Der Code ist abgelaufen. Bitte fordere einen neuen an.' };
+    }
+    if (lower.includes('invalid') || lower.includes('token')) {
+      return { error: 'Der Code ist ungültig. Bitte prüfe deine Eingabe.' };
+    }
+    return { error: error.message };
+  }
+
+  return {};
+}
+
 export async function resendSignupConfirmation(email: string): Promise<{ error?: string }> {
   const trimmed = email.trim();
   if (!trimmed) return { error: 'E-Mail fehlt.' };
@@ -178,9 +210,6 @@ export async function resendSignupConfirmation(email: string): Promise<{ error?:
   const { error } = await supabase.auth.resend({
     type: 'signup',
     email: trimmed,
-    options: {
-      emailRedirectTo: getEmailRedirectUrl(),
-    },
   });
 
   if (error) return { error: error.message };

@@ -189,6 +189,7 @@ export function createPostCreateStyles(c) {
       paddingVertical: 14,
     },
     selectText: { color: c.text, fontSize: 15, fontWeight: '600' },
+    selectPlaceholder: { color: c.textMuted, fontWeight: '500' },
     imagePickerBtn: {
       flexDirection: 'row',
       alignItems: 'center',

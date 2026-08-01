@@ -87,6 +87,14 @@ export async function uploadTeamLogo(teamId: string, localUri: string): Promise<
   return uploadFile(STORAGE_BUCKETS.teamLogos, `${teamId}/logo`, localUri);
 }
 
+export async function uploadSponsorLogo(
+  teamId: string,
+  sponsorId: string,
+  localUri: string,
+): Promise<string> {
+  return uploadFile(STORAGE_BUCKETS.teamLogos, `${teamId}/sponsors/${sponsorId}`, localUri);
+}
+
 export async function uploadPostImage(postId: string, localUri: string): Promise<string> {
   return uploadFile(STORAGE_BUCKETS.postImages, `${postId}/${Date.now()}`, localUri);
 }
