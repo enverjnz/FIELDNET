@@ -1,0 +1,6 @@
+id,name,public,file_size_limit,allowed_mime_types,created_at,updated_at
+league_logos,league_logos,true,null,null,2026-06-17 15:41:04.562187+00,2026-06-17 15:41:04.562187+00
+post_images,post_images,true,null,null,2026-06-29 17:20:24.544261+00,2026-06-29 17:20:24.544261+00
+profile_avatars,profile_avatars,true,null,null,2026-06-21 14:22:00.430892+00,2026-06-21 14:22:00.430892+00
+profile_media,profile_media,true,null,null,2026-07-20 19:34:46.459897+00,2026-07-20 19:34:46.459897+00
+team_logos,team_logos,true,null,null,2026-06-21 13:32:37.749189+00,2026-06-21 13:32:37.749189+00

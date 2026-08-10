@@ -1,0 +1,195 @@
+table_schema,table_name,column_name,ordinal_position,data_type,character_maximum_length,is_nullable,column_default,is_primary_key
+
+public,clubs,id,1,uuid,null,NO,gen_random_uuid(),YES
+public,clubs,name,2,character varying,255,NO,null,NO
+public,clubs,created_at,3,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO
+public,conversation_members,conversation_id,1,uuid,null,NO,null,YES
+public,conversation_members,user_id,2,uuid,null,NO,null,YES
+public,conversation_members,joined_at,3,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO
+public,conversation_members,last_read_at,4,timestamp with time zone,null,YES,null,NO
+public,conversations,id,1,uuid,null,NO,gen_random_uuid(),YES
+public,conversations,type,2,text,null,NO,null,NO
+public,conversations,league_id,3,uuid,null,YES,null,NO
+public,conversations,title,4,text,null,YES,null,NO
+public,conversations,created_at,5,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO
+public,delete_profiles,id,1,bigint,null,NO,null,YES
+public,delete_profiles,created_at,2,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO
+public,delete_profiles,reason,3,text,null,NO,null,NO
+public,delete_profiles,feedback,4,text,null,YES,null,NO
+public,feedback_reports,id,1,uuid,null,NO,gen_random_uuid(),YES
+public,feedback_reports,user_id,2,uuid,null,NO,null,NO
+public,feedback_reports,category,3,text,null,NO,null,NO
+public,feedback_reports,message,4,text,null,NO,null,NO
+public,feedback_reports,created_at,5,timestamp with time zone,null,NO,now(),NO
+public,followers,id,1,bigint,null,NO,null,YES
+public,followers,created_at,2,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO
+public,followers,user_id,3,uuid,null,NO,null,NO
+public,followers,team_id,4,uuid,null,NO,null,NO
+public,games,id,1,integer,null,NO,nextval('games_idgame_seq'::regclass),YES
+public,games,status,2,character varying,45,YES,'SCHEDULED'::character varying,NO
+public,games,home_score,3,integer,null,YES,0,NO
+public,games,away_score,4,integer,null,YES,0,NO
+public,games,home_team_id,5,uuid,null,YES,null,NO
+public,games,away_team_name,6,text,null,YES,null,NO
+public,games,game_date,7,date,null,YES,null,NO
+public,games,game_time,8,text,null,YES,null,NO
+public,games,location,9,text,null,YES,null,NO
+public,games,is_home_game,10,boolean,null,YES,true,NO
+public,games,game_code,11,text,null,YES,null,NO
+public,games,created_by,12,uuid,null,YES,null,NO
+public,league_teams,id,1,bigint,null,NO,null,YES
+public,league_teams,team_id,2,uuid,null,NO,null,NO
+public,league_teams,league_id,3,uuid,null,NO,null,NO
+public,league_teams,season_id,4,bigint,null,NO,null,NO
+public,league_teams,created_at,5,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO
+public,leagues,id,1,uuid,null,NO,gen_random_uuid(),YES
+public,leagues,name,2,text,null,NO,null,NO
+public,leagues,created_at,3,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO
+public,leagues,league_logo_url,4,text,null,YES,null,NO
+public,leagues,region_id,5,integer,null,YES,null,NO
+public,leagues,division,6,character varying,null,NO,'Herren'::character varying,NO
+public,leagues,season_id,7,bigint,null,YES,null,NO
+public,messages,id,1,uuid,null,NO,gen_random_uuid(),YES
+public,messages,conversation_id,2,uuid,null,NO,null,NO
+public,messages,sender_id,3,uuid,null,NO,null,NO
+public,messages,content,4,text,null,NO,null,NO
+public,messages,created_at,5,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO
+public,messages,is_anonymous,6,boolean,null,NO,false,NO
+public,post_comments,id,1,uuid,null,NO,gen_random_uuid(),YES
+public,post_comments,post_id,2,uuid,null,NO,null,NO
+public,post_comments,user_id,3,uuid,null,NO,null,NO
+public,post_comments,content,4,text,null,NO,null,NO
+public,post_comments,created_at,5,timestamp with time zone,null,NO,now(),NO
+public,post_likes,id,1,uuid,null,NO,gen_random_uuid(),YES
+public,post_likes,post_id,2,uuid,null,NO,null,NO
+public,post_likes,user_id,3,uuid,null,NO,null,NO
+public,post_likes,created_at,4,timestamp with time zone,null,NO,now(),NO
+public,posts,id,1,uuid,null,NO,gen_random_uuid(),YES
+public,posts,created_at,2,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO
+public,posts,team_id,3,uuid,null,NO,null,NO
+public,posts,author_id,4,uuid,null,YES,null,NO
+public,posts,title,5,character varying,null,NO,null,NO
+public,posts,content,6,text,null,NO,null,NO
+public,posts,image_url,7,text,null,YES,null,NO
+public,posts,category,8,character varying,null,NO,'News'::character varying,NO
+public,problem_reports,id,1,uuid,null,NO,gen_random_uuid(),YES
+public,problem_reports,user_id,2,uuid,null,YES,null,NO
+public,problem_reports,category,3,text,null,NO,null,NO
+public,problem_reports,message,4,text,null,NO,null,NO
+public,problem_reports,created_at,5,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO
+public,profile_blocks,id,1,uuid,null,NO,gen_random_uuid(),YES
+public,profile_blocks,blocker_id,2,uuid,null,NO,null,NO
+public,profile_blocks,blocked_id,3,uuid,null,NO,null,NO
+public,profile_blocks,created_at,4,timestamp with time zone,null,NO,now(),NO
+public,profile_followers,id,1,bigint,null,NO,null,YES
+public,profile_followers,created_at,2,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO
+public,profile_followers,follower_id,3,uuid,null,NO,null,NO
+public,profile_followers,following_id,4,uuid,null,NO,null,NO
+public,profile_media,id,1,uuid,null,NO,gen_random_uuid(),YES
+public,profile_media,profile_id,2,uuid,null,NO,null,NO
+public,profile_media,media_url,3,text,null,NO,null,NO
+public,profile_media,media_type,4,text,null,NO,null,NO
+public,profile_media,created_at,5,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO
+public,profile_stats,id,1,bigint,null,NO,null,YES
+public,profile_stats,profile_id,2,uuid,null,NO,null,NO
+public,profile_stats,seasons_played,3,integer,null,NO,1,NO
+public,profile_stats,games_played,4,integer,null,NO,0,NO
+public,profile_stats,touchdowns,5,integer,null,NO,0,NO
+public,profile_stats,field_goals,6,integer,null,NO,0,NO
+public,profile_stats,extra_points,7,integer,null,NO,0,NO
+public,profile_stats,two_point_conversions,8,integer,null,NO,0,NO
+public,profile_stats,interceptions,9,integer,null,NO,0,NO
+public,profile_stats,sacks,10,integer,null,NO,0,NO
+table_schema,table_name,column_name,ordinal_position,data_type,character_maximum_length,is_nullable,column_default,is_primary_key
+public,profile_stats,count_mvp,11,integer,null,NO,0,NO
+public,profiles,id,1,uuid,null,NO,null,YES
+public,profiles,role,2,text,null,NO,null,NO
+public,profiles,avatar,3,text,null,YES,null,NO
+public,profiles,first_name,4,text,null,YES,null,NO
+public,profiles,last_name,5,text,null,YES,null,NO
+public,profiles,bio,6,text,null,YES,null,NO
+public,profiles,favourite_team_id,7,uuid,null,YES,null,NO
+public,profiles,position,8,text,null,YES,null,NO
+public,profiles,jersey_number,9,text,null,YES,null,NO
+public,profiles,age,10,integer,null,YES,null,NO
+public,profiles,gender,11,text,null,YES,null,NO
+public,profiles,weight,12,numeric,null,YES,null,NO
+public,profiles,height,13,numeric,null,YES,null,NO
+public,profiles,nationality,14,text,null,YES,null,NO
+public,profiles,created_at,15,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO
+public,profiles,coaching_experience,16,integer,null,YES,null,NO
+public,profiles,coaching_role,17,text,null,YES,null,NO
+public,profiles,coaching_license,18,text,null,YES,null,NO
+public,profiles,coaching_specialization,19,text,null,YES,null,NO
+public,profiles,birth_date,20,date,null,YES,null,NO
+public,regions,id,1,integer,null,NO,nextval('regions_idregion_seq'::regclass),YES
+public,regions,name,2,character varying,255,NO,null,NO
+public,regions,country_unit,3,text,null,YES,null,NO
+public,regions,region_logo_url,4,text,null,YES,null,NO
+public,reports,id,1,uuid,null,NO,gen_random_uuid(),YES
+public,reports,reporter_id,2,uuid,null,YES,null,NO
+public,reports,reported_type,3,text,null,NO,null,NO
+public,reports,target_id,4,uuid,null,NO,null,NO
+public,reports,reason,5,text,null,NO,null,NO
+public,reports,details,6,text,null,YES,null,NO
+public,reports,status,7,text,null,NO,'pending'::text,NO
+public,reports,created_at,8,timestamp with time zone,null,NO,now(),NO
+public,seasons,id,1,bigint,null,NO,null,YES
+public,seasons,created_at,2,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO
+public,seasons,year_label,3,character varying,null,NO,null,NO
+public,seasons,is_current,4,boolean,null,NO,false,NO
+public,team_invite_codes,id,1,uuid,null,NO,gen_random_uuid(),YES
+public,team_invite_codes,code,2,text,null,NO,null,NO
+public,team_invite_codes,is_used,3,boolean,null,NO,false,NO
+public,team_invite_codes,used_by_user_id,4,uuid,null,YES,null,NO
+public,team_invite_codes,team_id,5,uuid,null,YES,null,NO
+public,team_invite_codes,created_at,6,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO
+public,team_managers,id,1,integer,null,NO,nextval('team_managers_idteam_manager_seq'::regclass),YES
+public,team_managers,profile_id,2,uuid,null,NO,null,NO
+public,team_managers,team_id,3,uuid,null,NO,null,NO
+public,team_memberships,id,1,uuid,null,NO,gen_random_uuid(),YES
+public,team_memberships,player_id,2,uuid,null,NO,null,NO
+public,team_memberships,team_id,3,uuid,null,NO,null,NO
+public,team_memberships,status,4,text,null,NO,'pending'::text,NO
+public,team_memberships,created_at,5,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO
+public,team_stats,id,1,bigint,null,NO,null,YES
+public,team_stats,team_id,2,uuid,null,NO,null,NO
+public,team_stats,seasons_played,3,integer,null,NO,1,NO
+public,team_stats,games_played,4,integer,null,NO,0,NO
+public,team_stats,wins,5,integer,null,NO,0,NO
+public,team_stats,losses,6,integer,null,NO,0,NO
+public,team_stats,ties,7,integer,null,NO,0,NO
+public,team_stats,points_for,8,integer,null,NO,0,NO
+public,team_stats,points_against,9,integer,null,NO,0,NO
+public,teams,id,1,uuid,null,NO,gen_random_uuid(),YES
+public,teams,name,2,character varying,255,NO,null,NO
+public,teams,avatar_teamlogo,3,text,null,YES,null,NO
+public,teams,primary_colour,4,text,null,YES,null,NO
+public,teams,secondary_colour,5,text,null,YES,null,NO
+public,teams,town,6,text,null,YES,null,NO
+public,teams,founding_year,7,integer,null,YES,null,NO
+public,teams,number_of_members,8,integer,null,YES,null,NO
+public,teams,training_location,9,text,null,YES,null,NO
+public,teams,training_times,10,text,null,YES,null,NO
+public,teams,clubs_idclub,11,uuid,null,YES,null,NO
+public,teams,leagues_idleague,12,uuid,null,YES,null,NO
+public,teams,website,13,text,null,YES,null,NO
+public,teams,tel,14,text,null,YES,null,NO
+public,teams,email,15,text,null,YES,null,NO
+public,teams,instagram,16,text,null,YES,null,NO
+public,teams,created_at,17,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO
+public,teams,regions_idregion,18,integer,null,YES,null,NO
+public,teams,short_name,19,character varying,45,NO,null,NO
+public,ticker_events,id,1,integer,null,NO,nextval('ticker_events_idticker_event_seq'::regclass),YES
+public,ticker_events,quarter,2,character varying,10,YES,null,NO
+public,ticker_events,games_idgame,3,integer,null,NO,null,NO
+public,ticker_events,event_type,4,text,null,NO,'score_update'::text,NO
+public,ticker_events,points,5,integer,null,NO,0,NO
+public,ticker_events,team_side,6,text,null,YES,null,NO
+public,ticker_events,profile_id,7,uuid,null,YES,null,NO
+public,ticker_events,home_score,8,integer,null,NO,0,NO
+public,ticker_events,away_score,9,integer,null,NO,0,NO
+public,ticker_events,clock_time,10,text,null,YES,null,NO
+public,ticker_events,description,11,text,null,YES,null,NO
+public,ticker_events,created_at,12,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO
+public,ticker_events,created_by,13,uuid,null,YES,null,NO

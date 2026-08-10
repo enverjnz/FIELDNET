@@ -1,0 +1,26 @@
+schemaname,tablename,policyname,permissive,roles,cmd,qual,with_check
+storage,buckets,Buckets lesbar,PERMISSIVE,{public},SELECT,true,null
+storage,objects,Anyone can read post images,PERMISSIVE,{public},SELECT,(bucket_id = 'post_images'::text),null
+storage,objects,Authenticated can update post images,PERMISSIVE,{authenticated},UPDATE,(bucket_id = 'post_images'::text),(bucket_id = 'post_images'::text)
+storage,objects,Authenticated can upload post images,PERMISSIVE,{authenticated},INSERT,null,(bucket_id = 'post_images'::text)
+storage,objects,Managers select team logo,PERMISSIVE,{authenticated},SELECT,"((bucket_id = 'team_logos'::text) AND (EXISTS ( SELECT 1
+   FROM team_managers
+  WHERE ((team_managers.profile_id = auth.uid()) AND ((team_managers.team_id)::text = (storage.foldername(objects.name))[1])))))",null
+storage,objects,Managers update team logo,PERMISSIVE,{authenticated},UPDATE,"((bucket_id = 'team_logos'::text) AND (EXISTS ( SELECT 1
+   FROM team_managers
+  WHERE ((team_managers.profile_id = auth.uid()) AND ((team_managers.team_id)::text = (storage.foldername(objects.name))[1])))))","((bucket_id = 'team_logos'::text) AND (EXISTS ( SELECT 1
+   FROM team_managers
+  WHERE ((team_managers.profile_id = auth.uid()) AND ((team_managers.team_id)::text = (storage.foldername(objects.name))[1])))))"
+storage,objects,Managers upload team logo,PERMISSIVE,{authenticated},INSERT,null,"((bucket_id = 'team_logos'::text) AND (EXISTS ( SELECT 1
+   FROM team_managers
+  WHERE ((team_managers.profile_id = auth.uid()) AND ((team_managers.team_id)::text = (storage.foldername(objects.name))[1])))))"
+storage,objects,Public read profile_media,PERMISSIVE,{public},SELECT,(bucket_id = 'profile_media'::text),null
+storage,objects,Team-Logo aktualisieren,PERMISSIVE,{authenticated},UPDATE,(bucket_id = 'team_logos'::text),(bucket_id = 'team_logos'::text)
+storage,objects,Team-Logo hochladen,PERMISSIVE,{authenticated},INSERT,null,(bucket_id = 'team_logos'::text)
+storage,objects,Users delete own avatar,PERMISSIVE,{authenticated},DELETE,((bucket_id = 'profile_avatars'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text)),null
+storage,objects,Users delete own profile_media,PERMISSIVE,{authenticated},DELETE,((bucket_id = 'profile_media'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text)),null
+storage,objects,Users select own avatar,PERMISSIVE,{authenticated},SELECT,((bucket_id = 'profile_avatars'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text)),null
+storage,objects,Users update own avatar,PERMISSIVE,{authenticated},UPDATE,((bucket_id = 'profile_avatars'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text)),((bucket_id = 'profile_avatars'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text))
+storage,objects,Users update own profile_media,PERMISSIVE,{authenticated},UPDATE,((bucket_id = 'profile_media'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text)),null
+storage,objects,Users upload own avatar,PERMISSIVE,{authenticated},INSERT,null,((bucket_id = 'profile_avatars'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text))
+storage,objects,Users upload own profile_media,PERMISSIVE,{authenticated},INSERT,null,((bucket_id = 'profile_media'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text))

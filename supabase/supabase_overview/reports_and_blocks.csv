@@ -1,0 +1,6 @@
+schemaname,tablename,policyname,permissive,roles,cmd,qual,with_check
+public,profile_blocks,Users can delete own blocks,PERMISSIVE,{authenticated},DELETE,(auth.uid() = blocker_id),null
+public,profile_blocks,Users can insert own blocks,PERMISSIVE,{authenticated},INSERT,null,(auth.uid() = blocker_id)
+public,profile_blocks,Users can read own blocks,PERMISSIVE,{authenticated},SELECT,((auth.uid() = blocker_id) OR (auth.uid() = blocked_id)),null
+public,reports,Authenticated can insert own reports,PERMISSIVE,{authenticated},INSERT,null,(auth.uid() = reporter_id)
+public,reports,Users can read own reports,PERMISSIVE,{authenticated},SELECT,(auth.uid() = reporter_id),null

@@ -1,0 +1,106 @@
+schema,function_name,arguments,return_type,definition
+auth,email,,text,"CREATE OR REPLACE FUNCTION auth.email()
+ RETURNS text
+ LANGUAGE sql
+ STABLE
+AS $function$
+  select 
+  coalesce(
+    nullif(current_setting('request.jwt.claim.email', true), ''),
+    (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'email')
+  )::text
+$function$
+"
+auth,jwt,,jsonb,"CREATE OR REPLACE FUNCTION auth.jwt()
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE
+AS $function$
+  select 
+    coalesce(
+        nullif(current_setting('request.jwt.claim', true), ''),
+        nullif(current_setting('request.jwt.claims', true), '')
+    )::jsonb
+$function$
+"
+auth,role,,text,"CREATE OR REPLACE FUNCTION auth.role()
+ RETURNS text
+ LANGUAGE sql
+ STABLE
+AS $function$
+  select 
+  coalesce(
+    nullif(current_setting('request.jwt.claim.role', true), ''),
+    (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role')
+  )::text
+$function$
+"
+auth,uid,,uuid,"CREATE OR REPLACE FUNCTION auth.uid()
+ RETURNS uuid
+ LANGUAGE sql
+ STABLE
+AS $function$
+  select 
+  coalesce(
+    nullif(current_setting('request.jwt.claim.sub', true), ''),
+    (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')
+  )::uuid
+$function$
+"
+public,delete_own_account,,void,"CREATE OR REPLACE FUNCTION public.delete_own_account()
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+  DELETE FROM auth.users WHERE id = auth.uid();
+END;
+$function$
+"
+public,is_conversation_member,p_conversation_id uuid,boolean,"CREATE OR REPLACE FUNCTION public.is_conversation_member(p_conversation_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.conversation_members
+    WHERE conversation_id = p_conversation_id
+      AND user_id = auth.uid()
+  );
+$function$
+"
+public,is_empty_conversation,p_conversation_id uuid,boolean,"CREATE OR REPLACE FUNCTION public.is_empty_conversation(p_conversation_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT NOT EXISTS (
+    SELECT 1
+    FROM public.conversation_members
+    WHERE conversation_id = p_conversation_id
+  );
+$function$
+"
+public,submit_deletion_feedback,"p_reason text, p_feedback text",void,"CREATE OR REPLACE FUNCTION public.submit_deletion_feedback(p_reason text, p_feedback text DEFAULT NULL::text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  INSERT INTO public.delete_profiles (reason, feedback)
+  VALUES (trim(p_reason), nullif(trim(p_feedback), ''));
+END;
+$function$
+"

@@ -1,0 +1,101 @@
+table_schema,table_name,constraint_name,constraint_type,check_clause
+public,clubs,2200_18157_1_not_null,CHECK,id IS NOT NULL
+public,clubs,2200_18157_2_not_null,CHECK,name IS NOT NULL
+public,clubs,2200_18157_3_not_null,CHECK,created_at IS NOT NULL
+public,conversation_members,2200_19166_1_not_null,CHECK,conversation_id IS NOT NULL
+public,conversation_members,2200_19166_2_not_null,CHECK,user_id IS NOT NULL
+public,conversation_members,2200_19166_3_not_null,CHECK,joined_at IS NOT NULL
+public,conversations,2200_19149_1_not_null,CHECK,id IS NOT NULL
+public,conversations,2200_19149_2_not_null,CHECK,type IS NOT NULL
+public,conversations,2200_19149_5_not_null,CHECK,created_at IS NOT NULL
+public,conversations,conversations_league_required,CHECK,(((type = 'league'::text) AND (league_id IS NOT NULL)) OR ((type = 'direct'::text) AND (league_id IS NULL)))
+public,conversations,conversations_type_check,CHECK,"(type = ANY (ARRAY['direct'::text, 'league'::text]))"
+public,delete_profiles,2200_18725_1_not_null,CHECK,id IS NOT NULL
+public,delete_profiles,2200_18725_2_not_null,CHECK,created_at IS NOT NULL
+public,delete_profiles,2200_18725_3_not_null,CHECK,reason IS NOT NULL
+public,feedback_reports,2200_19438_1_not_null,CHECK,id IS NOT NULL
+public,feedback_reports,2200_19438_2_not_null,CHECK,user_id IS NOT NULL
+public,feedback_reports,2200_19438_3_not_null,CHECK,category IS NOT NULL
+public,feedback_reports,2200_19438_4_not_null,CHECK,message IS NOT NULL
+public,feedback_reports,2200_19438_5_not_null,CHECK,created_at IS NOT NULL
+public,followers,2200_19068_1_not_null,CHECK,id IS NOT NULL
+public,followers,2200_19068_2_not_null,CHECK,created_at IS NOT NULL
+public,followers,2200_19068_3_not_null,CHECK,user_id IS NOT NULL
+public,followers,2200_19068_4_not_null,CHECK,team_id IS NOT NULL
+public,followers,unique_user_team_follow,UNIQUE,null
+public,games,2200_18195_1_not_null,CHECK,id IS NOT NULL
+public,games,games_game_code_key,UNIQUE,null
+public,league_teams,2200_18988_1_not_null,CHECK,id IS NOT NULL
+public,league_teams,2200_18988_2_not_null,CHECK,team_id IS NOT NULL
+public,league_teams,2200_18988_3_not_null,CHECK,league_id IS NOT NULL
+public,league_teams,2200_18988_4_not_null,CHECK,season_id IS NOT NULL
+public,league_teams,2200_18988_5_not_null,CHECK,created_at IS NOT NULL
+public,league_teams,league_teams_team_season_unique,UNIQUE,null
+public,leagues,2200_18166_1_not_null,CHECK,id IS NOT NULL
+public,leagues,2200_18166_2_not_null,CHECK,name IS NOT NULL
+public,leagues,2200_18166_3_not_null,CHECK,created_at IS NOT NULL
+public,leagues,2200_18166_6_not_null,CHECK,division IS NOT NULL
+public,messages,2200_19182_1_not_null,CHECK,id IS NOT NULL
+public,messages,2200_19182_2_not_null,CHECK,conversation_id IS NOT NULL
+public,messages,2200_19182_3_not_null,CHECK,sender_id IS NOT NULL
+public,messages,2200_19182_4_not_null,CHECK,content IS NOT NULL
+public,messages,2200_19182_5_not_null,CHECK,created_at IS NOT NULL
+public,messages,2200_19182_6_not_null,CHECK,is_anonymous IS NOT NULL
+public,post_comments,2200_19120_1_not_null,CHECK,id IS NOT NULL
+public,post_comments,2200_19120_2_not_null,CHECK,post_id IS NOT NULL
+public,post_comments,2200_19120_3_not_null,CHECK,user_id IS NOT NULL
+public,post_comments,2200_19120_4_not_null,CHECK,content IS NOT NULL
+public,post_comments,2200_19120_5_not_null,CHECK,created_at IS NOT NULL
+public,post_likes,2200_19864_1_not_null,CHECK,id IS NOT NULL
+public,post_likes,2200_19864_2_not_null,CHECK,post_id IS NOT NULL
+public,post_likes,2200_19864_3_not_null,CHECK,user_id IS NOT NULL
+public,post_likes,2200_19864_4_not_null,CHECK,created_at IS NOT NULL
+public,post_likes,post_likes_post_id_user_id_key,UNIQUE,null
+public,posts,2200_19092_1_not_null,CHECK,id IS NOT NULL
+public,posts,2200_19092_2_not_null,CHECK,created_at IS NOT NULL
+public,posts,2200_19092_3_not_null,CHECK,team_id IS NOT NULL
+public,posts,2200_19092_5_not_null,CHECK,title IS NOT NULL
+public,posts,2200_19092_6_not_null,CHECK,content IS NOT NULL
+public,posts,2200_19092_8_not_null,CHECK,category IS NOT NULL
+public,problem_reports,2200_19413_1_not_null,CHECK,id IS NOT NULL
+public,problem_reports,2200_19413_3_not_null,CHECK,category IS NOT NULL
+public,problem_reports,2200_19413_4_not_null,CHECK,message IS NOT NULL
+public,problem_reports,2200_19413_5_not_null,CHECK,created_at IS NOT NULL
+public,profile_blocks,2200_20049_1_not_null,CHECK,id IS NOT NULL
+public,profile_blocks,2200_20049_2_not_null,CHECK,blocker_id IS NOT NULL
+public,profile_blocks,2200_20049_3_not_null,CHECK,blocked_id IS NOT NULL
+public,profile_blocks,2200_20049_4_not_null,CHECK,created_at IS NOT NULL
+public,profile_blocks,profile_blocks_no_self,CHECK,(blocker_id <> blocked_id)
+public,profile_blocks,profile_blocks_unique,UNIQUE,null
+public,profile_followers,2200_19826_1_not_null,CHECK,id IS NOT NULL
+public,profile_followers,2200_19826_2_not_null,CHECK,created_at IS NOT NULL
+public,profile_followers,2200_19826_3_not_null,CHECK,follower_id IS NOT NULL
+public,profile_followers,2200_19826_4_not_null,CHECK,following_id IS NOT NULL
+public,profile_followers,profile_followers_no_self,CHECK,(follower_id <> following_id)
+public,profile_followers,profile_followers_unique,UNIQUE,null
+public,profile_media,2200_19802_1_not_null,CHECK,id IS NOT NULL
+public,profile_media,2200_19802_2_not_null,CHECK,profile_id IS NOT NULL
+public,profile_media,2200_19802_3_not_null,CHECK,media_url IS NOT NULL
+public,profile_media,2200_19802_4_not_null,CHECK,media_type IS NOT NULL
+public,profile_media,2200_19802_5_not_null,CHECK,created_at IS NOT NULL
+public,profile_media,profile_media_media_type_check,CHECK,"(media_type = ANY (ARRAY['image'::text, 'video'::text]))"
+public,profile_stats,2200_18785_10_not_null,CHECK,sacks IS NOT NULL
+public,profile_stats,2200_18785_11_not_null,CHECK,count_mvp IS NOT NULL
+public,profile_stats,2200_18785_1_not_null,CHECK,id IS NOT NULL
+public,profile_stats,2200_18785_2_not_null,CHECK,profile_id IS NOT NULL
+public,profile_stats,2200_18785_3_not_null,CHECK,seasons_played IS NOT NULL
+public,profile_stats,2200_18785_4_not_null,CHECK,games_played IS NOT NULL
+public,profile_stats,2200_18785_5_not_null,CHECK,touchdowns IS NOT NULL
+public,profile_stats,2200_18785_6_not_null,CHECK,field_goals IS NOT NULL
+public,profile_stats,2200_18785_7_not_null,CHECK,extra_points IS NOT NULL
+public,profile_stats,2200_18785_8_not_null,CHECK,two_point_conversions IS NOT NULL
+public,profile_stats,2200_18785_9_not_null,CHECK,interceptions IS NOT NULL
+public,profile_stats,unique_profile_stats,UNIQUE,null
+public,profiles,2200_18216_15_not_null,CHECK,created_at IS NOT NULL
+public,profiles,2200_18216_1_not_null,CHECK,id IS NOT NULL
+public,profiles,2200_18216_2_not_null,CHECK,role IS NOT NULL
+public,profiles,profiles_role_check,CHECK,"(role = ANY (ARRAY['player'::text, 'fan'::text, 'coach'::text]))"
+public,regions,2200_18151_1_not_null,CHECK,id IS NOT NULL
+public,regions,2200_18151_2_not_null,CHECK,name IS NOT NULL
+public,reports,2200_20024_1_not_null,CHECK,id IS NOT NULL
+public,reports,2200_20024_3_not_null,CHECK,reported_type IS NOT NULL

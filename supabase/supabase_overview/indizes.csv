@@ -1,0 +1,62 @@
+schemaname,tablename,indexname,indexdef
+public,clubs,clubs_pkey,CREATE UNIQUE INDEX clubs_pkey ON public.clubs USING btree (id)
+public,conversation_members,conversation_members_pkey,"CREATE UNIQUE INDEX conversation_members_pkey ON public.conversation_members USING btree (conversation_id, user_id)"
+public,conversation_members,conversation_members_user_idx,CREATE INDEX conversation_members_user_idx ON public.conversation_members USING btree (user_id)
+public,conversations,conversations_league_unique,CREATE UNIQUE INDEX conversations_league_unique ON public.conversations USING btree (league_id) WHERE (type = 'league'::text)
+public,conversations,conversations_pkey,CREATE UNIQUE INDEX conversations_pkey ON public.conversations USING btree (id)
+public,delete_profiles,delete_profiles_pkey,CREATE UNIQUE INDEX delete_profiles_pkey ON public.delete_profiles USING btree (id)
+public,feedback_reports,feedback_reports_created_at_idx,CREATE INDEX feedback_reports_created_at_idx ON public.feedback_reports USING btree (created_at DESC)
+public,feedback_reports,feedback_reports_pkey,CREATE UNIQUE INDEX feedback_reports_pkey ON public.feedback_reports USING btree (id)
+public,feedback_reports,feedback_reports_user_id_idx,CREATE INDEX feedback_reports_user_id_idx ON public.feedback_reports USING btree (user_id)
+public,followers,followers_pkey,CREATE UNIQUE INDEX followers_pkey ON public.followers USING btree (id)
+public,followers,unique_user_team_follow,"CREATE UNIQUE INDEX unique_user_team_follow ON public.followers USING btree (user_id, team_id)"
+public,games,games_game_code_key,CREATE UNIQUE INDEX games_game_code_key ON public.games USING btree (game_code)
+public,games,games_pkey,CREATE UNIQUE INDEX games_pkey ON public.games USING btree (id)
+public,league_teams,league_teams_league_season_idx,"CREATE INDEX league_teams_league_season_idx ON public.league_teams USING btree (league_id, season_id)"
+public,league_teams,league_teams_pkey,CREATE UNIQUE INDEX league_teams_pkey ON public.league_teams USING btree (id)
+public,league_teams,league_teams_team_idx,CREATE INDEX league_teams_team_idx ON public.league_teams USING btree (team_id)
+public,league_teams,league_teams_team_season_unique,"CREATE UNIQUE INDEX league_teams_team_season_unique ON public.league_teams USING btree (team_id, season_id)"
+public,leagues,idx_leagues_region_id,CREATE INDEX idx_leagues_region_id ON public.leagues USING btree (region_id)
+public,leagues,leagues_pkey,CREATE UNIQUE INDEX leagues_pkey ON public.leagues USING btree (id)
+public,messages,messages_conversation_created_idx,"CREATE INDEX messages_conversation_created_idx ON public.messages USING btree (conversation_id, created_at)"
+public,messages,messages_pkey,CREATE UNIQUE INDEX messages_pkey ON public.messages USING btree (id)
+public,post_comments,post_comments_pkey,CREATE UNIQUE INDEX post_comments_pkey ON public.post_comments USING btree (id)
+public,post_comments,post_comments_post_id_idx,CREATE INDEX post_comments_post_id_idx ON public.post_comments USING btree (post_id)
+public,post_likes,post_likes_pkey,CREATE UNIQUE INDEX post_likes_pkey ON public.post_likes USING btree (id)
+public,post_likes,post_likes_post_id_idx,CREATE INDEX post_likes_post_id_idx ON public.post_likes USING btree (post_id)
+public,post_likes,post_likes_post_id_user_id_key,"CREATE UNIQUE INDEX post_likes_post_id_user_id_key ON public.post_likes USING btree (post_id, user_id)"
+public,post_likes,post_likes_user_id_idx,CREATE INDEX post_likes_user_id_idx ON public.post_likes USING btree (user_id)
+public,posts,posts_pkey,CREATE UNIQUE INDEX posts_pkey ON public.posts USING btree (id)
+public,problem_reports,problem_reports_created_at_idx,CREATE INDEX problem_reports_created_at_idx ON public.problem_reports USING btree (created_at DESC)
+public,problem_reports,problem_reports_pkey,CREATE UNIQUE INDEX problem_reports_pkey ON public.problem_reports USING btree (id)
+public,profile_blocks,profile_blocks_blocked_id_idx,CREATE INDEX profile_blocks_blocked_id_idx ON public.profile_blocks USING btree (blocked_id)
+public,profile_blocks,profile_blocks_blocker_id_idx,CREATE INDEX profile_blocks_blocker_id_idx ON public.profile_blocks USING btree (blocker_id)
+public,profile_blocks,profile_blocks_pkey,CREATE UNIQUE INDEX profile_blocks_pkey ON public.profile_blocks USING btree (id)
+public,profile_blocks,profile_blocks_unique,"CREATE UNIQUE INDEX profile_blocks_unique ON public.profile_blocks USING btree (blocker_id, blocked_id)"
+public,profile_followers,profile_followers_follower_idx,CREATE INDEX profile_followers_follower_idx ON public.profile_followers USING btree (follower_id)
+public,profile_followers,profile_followers_following_idx,CREATE INDEX profile_followers_following_idx ON public.profile_followers USING btree (following_id)
+public,profile_followers,profile_followers_pkey,CREATE UNIQUE INDEX profile_followers_pkey ON public.profile_followers USING btree (id)
+public,profile_followers,profile_followers_unique,"CREATE UNIQUE INDEX profile_followers_unique ON public.profile_followers USING btree (follower_id, following_id)"
+public,profile_media,profile_media_pkey,CREATE UNIQUE INDEX profile_media_pkey ON public.profile_media USING btree (id)
+public,profile_media,profile_media_profile_id_idx,"CREATE INDEX profile_media_profile_id_idx ON public.profile_media USING btree (profile_id, created_at DESC)"
+public,profile_stats,profile_stats_pkey,CREATE UNIQUE INDEX profile_stats_pkey ON public.profile_stats USING btree (id)
+public,profile_stats,unique_profile_stats,CREATE UNIQUE INDEX unique_profile_stats ON public.profile_stats USING btree (profile_id)
+public,profiles,profiles_pkey,CREATE UNIQUE INDEX profiles_pkey ON public.profiles USING btree (id)
+public,regions,regions_pkey,CREATE UNIQUE INDEX regions_pkey ON public.regions USING btree (id)
+public,reports,reports_pkey,CREATE UNIQUE INDEX reports_pkey ON public.reports USING btree (id)
+public,reports,reports_reporter_id_idx,CREATE INDEX reports_reporter_id_idx ON public.reports USING btree (reporter_id)
+public,reports,reports_status_created_at_idx,"CREATE INDEX reports_status_created_at_idx ON public.reports USING btree (status, created_at DESC)"
+public,reports,reports_target_idx,"CREATE INDEX reports_target_idx ON public.reports USING btree (reported_type, target_id)"
+public,seasons,seasons_pkey,CREATE UNIQUE INDEX seasons_pkey ON public.seasons USING btree (id)
+public,seasons,seasons_year_label_unique,CREATE UNIQUE INDEX seasons_year_label_unique ON public.seasons USING btree (year_label)
+public,team_invite_codes,team_invite_codes_code_key,CREATE UNIQUE INDEX team_invite_codes_code_key ON public.team_invite_codes USING btree (code)
+public,team_invite_codes,team_invite_codes_pkey,CREATE UNIQUE INDEX team_invite_codes_pkey ON public.team_invite_codes USING btree (id)
+public,team_managers,team_managers_pkey,CREATE UNIQUE INDEX team_managers_pkey ON public.team_managers USING btree (id)
+public,team_managers,unique_manager,"CREATE UNIQUE INDEX unique_manager ON public.team_managers USING btree (profile_id, team_id)"
+public,team_memberships,team_memberships_pkey,CREATE UNIQUE INDEX team_memberships_pkey ON public.team_memberships USING btree (id)
+public,team_memberships,team_memberships_player_id_team_id_key,"CREATE UNIQUE INDEX team_memberships_player_id_team_id_key ON public.team_memberships USING btree (player_id, team_id)"
+public,team_stats,team_stats_pkey,CREATE UNIQUE INDEX team_stats_pkey ON public.team_stats USING btree (id)
+public,team_stats,unique_team_stats,CREATE UNIQUE INDEX unique_team_stats ON public.team_stats USING btree (team_id)
+public,teams,teams_pkey,CREATE UNIQUE INDEX teams_pkey ON public.teams USING btree (id)
+public,ticker_events,idx_ticker_events_game_created,"CREATE INDEX idx_ticker_events_game_created ON public.ticker_events USING btree (games_idgame, created_at)"
+public,ticker_events,ticker_events_pkey,CREATE UNIQUE INDEX ticker_events_pkey ON public.ticker_events USING btree (id)
