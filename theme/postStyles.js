@@ -11,6 +11,8 @@ export function getPostCategoryStyles(c) {
 }
 
 export function createPostCardStyles(c) {
+  const actionPillBg = c.chipBg;
+
   return StyleSheet.create({
     postWrapper: {
       marginBottom: 12,
@@ -57,6 +59,169 @@ export function createPostCardStyles(c) {
     actionTextActive: {
       color: c.accent,
     },
+
+    /* ── Hero variant (Home Feed) ── */
+    heroCard: {
+      backgroundColor: c.surface,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: c.border,
+      overflow: 'hidden',
+      marginBottom: 16,
+    },
+    heroImageWrap: {
+      position: 'relative',
+      width: '100%',
+      height: 210,
+      backgroundColor: c.card,
+    },
+    heroImage: {
+      width: '100%',
+      height: '100%',
+    },
+    heroImagePlaceholder: {
+      width: '100%',
+      height: '100%',
+      backgroundColor: c.card,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    heroImagePlaceholderLogo: {
+      width: 72,
+      height: 72,
+      borderRadius: 16,
+      opacity: 0.35,
+    },
+    heroOverlayTop: {
+      position: 'absolute',
+      top: 12,
+      left: 12,
+      right: 12,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+    },
+    heroTeamLogoWrap: {
+      width: 46,
+      height: 46,
+      borderRadius: 11,
+      backgroundColor: 'rgba(255,255,255,0.96)',
+      borderWidth: 1,
+      borderColor: 'rgba(0,0,0,0.06)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+      padding: 4,
+    },
+    heroTeamLogo: {
+      width: 38,
+      height: 38,
+      borderRadius: 8,
+    },
+    heroTeamLogoPlaceholder: {
+      width: 38,
+      height: 38,
+      borderRadius: 8,
+      backgroundColor: c.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    heroTeamLogoText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: '900',
+    },
+    heroFavoriteBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: '#FFFFFF',
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.12,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    heroDatePill: {
+      position: 'absolute',
+      bottom: 12,
+      right: 12,
+      backgroundColor: 'rgba(0,0,0,0.58)',
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+    },
+    heroDateText: {
+      color: '#FFFFFF',
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    heroBody: {
+      paddingHorizontal: 16,
+      paddingTop: 14,
+      paddingBottom: 4,
+    },
+    heroTeamName: {
+      color: c.text,
+      fontSize: 14,
+      fontWeight: '800',
+      marginBottom: 6,
+    },
+    heroTitle: {
+      color: c.text,
+      fontSize: 18,
+      fontWeight: '900',
+      letterSpacing: 0.1,
+      marginBottom: 8,
+      lineHeight: 24,
+    },
+    heroContent: {
+      color: c.textMuted,
+      fontSize: 14,
+      lineHeight: 21,
+      fontWeight: '500',
+    },
+    heroReadMore: {
+      color: c.accent,
+      fontSize: 14,
+      fontWeight: '700',
+      textDecorationLine: 'underline',
+    },
+    readMoreLink: {
+      color: c.accent,
+      fontWeight: '700',
+      textDecorationLine: 'underline',
+    },
+    heroActionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+      paddingTop: 10,
+      paddingBottom: 14,
+      gap: 8,
+    },
+    heroActionBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      backgroundColor: actionPillBg,
+      borderRadius: 22,
+      paddingVertical: 11,
+      paddingHorizontal: 6,
+    },
+    heroActionText: {
+      color: c.textMuted,
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    heroActionTextActive: {
+      color: c.accent,
+    },
+
     teamHeader: {
       flexDirection: 'row',
       alignItems: 'center',

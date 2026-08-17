@@ -43,6 +43,7 @@ import {
 import FullscreenImageModal from '../components/FullscreenImageModal';
 import ProfileGallery from '../components/ProfileGallery';
 import ReportContentModal from '../components/ReportContentModal';
+import EdgeSwipeBack from '../components/EdgeSwipeBack';
 import PlayerInjuredBadge from '../components/PlayerInjuredBadge';
 
 const B = '#1A2F6E';
@@ -143,27 +144,31 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-        <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-          <ArrowLeft size={20} color={B} />
-          <Text style={styles.backBtnText}>Zurück</Text>
-        </TouchableOpacity>
-        <ActivityIndicator color={B} style={{ marginTop: 60 }} />
-      </SafeAreaView>
+      <EdgeSwipeBack onBack={onBack} enabled={!!onBack}>
+        <SafeAreaView style={styles.safe}>
+          <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+          <TouchableOpacity style={styles.backBtn} onPress={onBack}>
+            <ArrowLeft size={20} color={B} />
+            <Text style={styles.backBtnText}>Zurück</Text>
+          </TouchableOpacity>
+          <ActivityIndicator color={B} style={{ marginTop: 60 }} />
+        </SafeAreaView>
+      </EdgeSwipeBack>
     );
   }
 
   if (!profile) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-        <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-          <ArrowLeft size={20} color={B} />
-          <Text style={styles.backBtnText}>Zurück</Text>
-        </TouchableOpacity>
-        <Text style={styles.emptyText}>Profil nicht gefunden.</Text>
-      </SafeAreaView>
+      <EdgeSwipeBack onBack={onBack} enabled={!!onBack}>
+        <SafeAreaView style={styles.safe}>
+          <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+          <TouchableOpacity style={styles.backBtn} onPress={onBack}>
+            <ArrowLeft size={20} color={B} />
+            <Text style={styles.backBtnText}>Zurück</Text>
+          </TouchableOpacity>
+          <Text style={styles.emptyText}>Profil nicht gefunden.</Text>
+        </SafeAreaView>
+      </EdgeSwipeBack>
     );
   }
 
@@ -266,6 +271,7 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
   };
 
   return (
+    <EdgeSwipeBack onBack={onBack} enabled={!!onBack}>
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
@@ -507,6 +513,7 @@ export default function PlayerProfileScreen({ profileId, onBack, onOpenChat }) {
 
       <FullscreenImageModal uri={fullscreenImage} onClose={() => setFullscreenImage(null)} />
     </SafeAreaView>
+    </EdgeSwipeBack>
   );
 }
 

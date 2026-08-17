@@ -35,6 +35,7 @@ import PostCard from '../components/PostCard';
 import PostCreateScreen from './PostCreateScreen';
 import FullscreenImageModal from '../components/FullscreenImageModal';
 import TimelineScreen from './TimelineScreen';
+import EdgeSwipeBack from '../components/EdgeSwipeBack';
 import { useTheme } from '../context/ThemeContext';
 import { createTeamProfileStyles } from '../theme/teamProfileStyles';
 
@@ -812,18 +813,21 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
-        <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-          <ArrowLeft size={20} color={colors.text} />
-          <Text style={styles.backBtnText}>Zurück</Text>
-        </TouchableOpacity>
-        <ActivityIndicator color={colors.text} style={{ marginTop: 60 }} />
-      </SafeAreaView>
+      <EdgeSwipeBack onBack={onBack} enabled={!!onBack}>
+        <SafeAreaView style={styles.safe}>
+          <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
+          <TouchableOpacity style={styles.backBtn} onPress={onBack}>
+            <ArrowLeft size={20} color={colors.text} />
+            <Text style={styles.backBtnText}>Zurück</Text>
+          </TouchableOpacity>
+          <ActivityIndicator color={colors.text} style={{ marginTop: 60 }} />
+        </SafeAreaView>
+      </EdgeSwipeBack>
     );
   }
 
   return (
+    <EdgeSwipeBack onBack={isEditing ? cancelEditing : onBack} enabled={!!onBack}>
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
 
@@ -1414,5 +1418,6 @@ export default function TeamProfileScreen({ teamId, onBack, readOnly = false, on
         onClose={() => setFullscreenImage(null)}
       />
     </SafeAreaView>
+    </EdgeSwipeBack>
   );
 }

@@ -5,11 +5,13 @@ import * as Linking from 'expo-linking';
 import { 
   Text, View, Image,
   ScrollView, TouchableOpacity, SafeAreaView, 
-  StatusBar, Alert, ActivityIndicator, Keyboard } from 'react-native';
+  StatusBar, Alert, ActivityIndicator, Keyboard,
+  Animated, Dimensions, StyleSheet,
+} from 'react-native';
 
 // Alle benötigten Icons in einem einzigen Import zusammengefasst
-import { Trophy, Bell, Search, 
-  User, ChevronRight, Home, 
+import { Trophy, Bell,
+  User, ChevronRight, Home, Star,
   LayoutGrid, CalendarDays, 
   MessageSquare, Users, 
   PlusCircle, Menu, X, LogOut } from 'lucide-react-native';
@@ -42,6 +44,7 @@ import AccountInfoScreen from './screens/AccountInfoScreen';
 import DeleteProfileScreen from './screens/DeleteProfileScreen';
 import ReportProblemScreen from './screens/ReportProblemScreen';
 import FeedbackScreen from './screens/FeedbackScreen';
+import FavoritesScreen from './screens/FavoritesScreen';
 import DatenschutzScreen from './screens/DatenschutzScreen';
 import ImpressumScreen from './screens/ImpressumScreen';
 import { supabase } from './lib/supabase';
@@ -52,6 +55,8 @@ import { hasUnreadChats, subscribeToIncomingMessages } from './lib/chat';
 import HomeFeed from './components/HomeFeed';
 import MasterFilterBar from './components/MasterFilterBar';
 import PostCreateScreen from './screens/PostCreateScreen';
+
+const DRAWER_WIDTH = Math.round(Dimensions.get('window').width * 0.78);
 
 
 export default function App() {
@@ -78,6 +83,7 @@ export default function App() {
   const [showAccountInfo, setShowAccountInfo]     = useState(false);
   const [showReportProblem, setShowReportProblem] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showFavorites, setShowFavorites] = useState(false);
   const [showDatenschutz, setShowDatenschutz] = useState(false);
   const [showImpressum, setShowImpressum] = useState(false);
   const [showDeleteProfile, setShowDeleteProfile] = useState(false);
@@ -97,6 +103,48 @@ export default function App() {
   const passwordRecoveryRef = useRef(false);
   const authStateRef = useRef(authState);
   authStateRef.current = authState;
+  const drawerSlide = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
+  const drawerBackdrop = useRef(new Animated.Value(0)).current;
+
+  const openMenu = useCallback(() => {
+    Keyboard.dismiss();
+    drawerSlide.setValue(-DRAWER_WIDTH);
+    drawerBackdrop.setValue(0);
+    setIsMenuOpen(true);
+  }, [drawerSlide, drawerBackdrop]);
+
+  const closeMenu = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(drawerSlide, {
+        toValue: -DRAWER_WIDTH,
+        duration: 240,
+        useNativeDriver: true,
+      }),
+      Animated.timing(drawerBackdrop, {
+        toValue: 0,
+        duration: 240,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (finished) setIsMenuOpen(false);
+    });
+  }, [drawerSlide, drawerBackdrop]);
+
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    Animated.parallel([
+      Animated.timing(drawerSlide, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+      Animated.timing(drawerBackdrop, {
+        toValue: 1,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [isMenuOpen, drawerSlide, drawerBackdrop]);
 
   const bumpProfileRefresh = () => setProfileRefreshKey((k) => k + 1);
 
@@ -106,6 +154,7 @@ export default function App() {
     setShowAccountInfo(false);
     setShowReportProblem(false);
     setShowFeedback(false);
+    setShowFavorites(false);
     setShowDatenschutz(false);
     setShowImpressum(false);
     setShowDeleteProfile(false);
@@ -213,6 +262,7 @@ export default function App() {
     setShowAccountInfo(false);
     setShowReportProblem(false);
     setShowFeedback(false);
+    setShowFavorites(false);
     setShowDatenschutz(false);
     setShowImpressum(false);
     setShowDeleteProfile(false);
@@ -235,6 +285,7 @@ export default function App() {
     setShowAccountInfo(false);
     setShowReportProblem(false);
     setShowFeedback(false);
+    setShowFavorites(false);
     setShowDatenschutz(false);
     setShowImpressum(false);
     setShowDeleteProfile(false);
@@ -245,9 +296,35 @@ export default function App() {
     setPendingInviteCodeId(null);
     setShowTickerFlow(false);
     setTickerGame(null);
-    if (reselect && index === 3) setSucheResetKey((k) => k + 1);
     if (reselect && index === 4) setProfilResetKey((k) => k + 1);
     if (index !== 2) setDmChatOpen(false);
+  };
+
+  const openSearch = () => {
+    Keyboard.dismiss();
+    setIsMenuOpen(false);
+    setShowSettings(false);
+    setShowAccountInfo(false);
+    setShowReportProblem(false);
+    setShowFeedback(false);
+    setShowFavorites(false);
+    setShowDatenschutz(false);
+    setShowImpressum(false);
+    setShowDeleteProfile(false);
+    setShowTeamDashboard(false);
+    setDashboardTeamId(null);
+    setShowInvoiceCode(false);
+    setShowTeamCreation(false);
+    setPendingInviteCodeId(null);
+    setShowTickerFlow(false);
+    setTickerGame(null);
+    setSelectedGame(null);
+    if (activeTab === 3) {
+      setSucheResetKey((k) => k + 1);
+    } else {
+      setActiveTab(3);
+    }
+    setDmChatOpen(false);
   };
 
   useEffect(() => {
@@ -444,6 +521,7 @@ export default function App() {
     setShowAccountInfo(false);
     setShowReportProblem(false);
     setShowFeedback(false);
+    setShowFavorites(false);
     setShowDatenschutz(false);
     setShowImpressum(false);
     setIsMenuOpen(false);
@@ -557,6 +635,7 @@ export default function App() {
     && !showAccountInfo
     && !showReportProblem
     && !showFeedback
+    && !showFavorites
     && !showDatenschutz
     && !showImpressum
     && !showDeleteProfile
@@ -764,51 +843,61 @@ export default function App() {
       
       {/* TOP BAR (HEADER) */}
       <View style={styles.header}>
-        <View style={styles.headerSide}>
-          <TouchableOpacity
-            style={[
-              styles.headerAvatarBtn,
-              activeTab === 4 && styles.headerAvatarBtnActive,
-            ]}
-            onPress={() => goToTab(4)}
-            activeOpacity={0.8}
-          >
-            {headerAvatarUrl ? (
-              <Image
-                source={{
-                  uri: headerAvatarUrl.includes('?')
-                    ? `${headerAvatarUrl}&v=${headerAvatarKey}`
-                    : `${headerAvatarUrl}?v=${headerAvatarKey}`,
-                }}
-                style={styles.headerAvatar}
-              />
-            ) : (
-              <View style={styles.headerAvatarPlaceholder}>
-                <Text style={styles.headerAvatarInitials}>{headerInitials}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={styles.burgerButton}
+          onPress={openMenu}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Menü öffnen"
+        >
+          <Menu size={24} color={colors.text} />
+        </TouchableOpacity>
 
-        <View style={styles.headerCenter} pointerEvents="none">
+        <TouchableOpacity
+          style={[
+            styles.headerSearchPill,
+            activeTab === 3 && styles.headerSearchPillActive,
+          ]}
+          onPress={openSearch}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="FIELDNET durchsuchen"
+        >
           <Image
             source={require('./assets/fieldnet_logo.png')}
-            style={styles.logoImage}
+            style={styles.headerSearchLogo}
             resizeMode="contain"
           />
-        </View>
+          <Text style={styles.headerSearchPlaceholder} numberOfLines={1}>
+            FIELDNET durchsuchen...
+          </Text>
+        </TouchableOpacity>
 
-        <View style={[styles.headerSide, styles.headerSideRight]}>
-          <TouchableOpacity
-            style={styles.burgerButton}
-            onPress={() => {
-              Keyboard.dismiss();
-              setIsMenuOpen(true);
-            }}
-          >
-            <Menu size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={[
+            styles.headerAvatarBtn,
+            activeTab === 4 && styles.headerAvatarBtnActive,
+          ]}
+          onPress={() => goToTab(4)}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Profil öffnen"
+        >
+          {headerAvatarUrl ? (
+            <Image
+              source={{
+                uri: headerAvatarUrl.includes('?')
+                  ? `${headerAvatarUrl}&v=${headerAvatarKey}`
+                  : `${headerAvatarUrl}?v=${headerAvatarKey}`,
+              }}
+              style={styles.headerAvatar}
+            />
+          ) : (
+            <View style={styles.headerAvatarPlaceholder}>
+              <Text style={styles.headerAvatarInitials}>{headerInitials}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* TICKER-SESSION: Zurück zur Maske ohne Code */}
@@ -846,12 +935,14 @@ export default function App() {
       <View style={styles.navBarWrapper}>
       
 
-        {/* DIE KORRIGIERTE 5-TAB NAVBAR */}
+        {/* 3-TAB NAVBAR: Home, Ligen, Chats */}
         <View style={styles.navBar}>
           <TouchableOpacity
             style={[styles.navTabItem, activeTab === 0 && styles.navTabItemActive]}
             onPress={() => goToTab(0)}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Home"
           >
             <Home size={22} color={activeTab === 0 ? '#FFFFFF' : colors.navInactive} />
           </TouchableOpacity>
@@ -860,6 +951,8 @@ export default function App() {
             style={[styles.navTabItem, activeTab === 1 && styles.navTabItemActive]}
             onPress={() => goToTab(1)}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Ligen"
           >
             <LayoutGrid size={22} color={activeTab === 1 ? '#FFFFFF' : colors.navInactive} />
           </TouchableOpacity>
@@ -868,19 +961,13 @@ export default function App() {
             style={[styles.navTabItem, activeTab === 2 && styles.navTabItemActive]}
             onPress={() => goToTab(2)}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Chats"
           >
             <View style={styles.navIconWrap}>
               <MessageSquare size={22} color={activeTab === 2 ? '#FFFFFF' : colors.navInactive} />
               {hasUnreadChat ? <View style={styles.navUnreadDot} /> : null}
             </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.navTabItem, activeTab === 3 && styles.navTabItemActive]}
-            onPress={() => goToTab(3)}
-            activeOpacity={0.75}
-          >
-            <Search size={22} color={activeTab === 3 ? '#FFFFFF' : colors.navInactive} />
           </TouchableOpacity>
         </View>
       </View>
@@ -943,6 +1030,13 @@ export default function App() {
       {showFeedback && (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background, zIndex: 204 }}>
           <FeedbackScreen onBack={() => setShowFeedback(false)} />
+        </View>
+      )}
+
+      {/* FAVORITEN */}
+      {showFavorites && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background, zIndex: 204 }}>
+          <FavoritesScreen onBack={() => setShowFavorites(false)} />
         </View>
       )}
 
@@ -1032,14 +1126,27 @@ export default function App() {
         </View>
       )}
 
-      {/* SEITENMENÜ OVERLAY (DRAWER) */}
+      {/* SEITENMENÜ OVERLAY (DRAWER von links) */}
       {isMenuOpen && (
         <View style={styles.drawerOverlay}>
-          <TouchableOpacity style={styles.drawerCloseDetector} activeOpacity={1} onPress={() => setIsMenuOpen(false)}/>
-          
-          <View style={styles.drawerContainer}>
+          <Animated.View style={[styles.drawerBackdrop, { opacity: drawerBackdrop }]}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={closeMenu}
+              accessibilityRole="button"
+              accessibilityLabel="Menü schließen"
+            />
+          </Animated.View>
+
+          <Animated.View
+            style={[
+              styles.drawerContainer,
+              { width: DRAWER_WIDTH, transform: [{ translateX: drawerSlide }] },
+            ]}
+          >
             <View style={styles.drawerHeader}>
-              <TouchableOpacity onPress={() => setIsMenuOpen(false)} style={styles.drawerCloseButton}>
+              <TouchableOpacity onPress={closeMenu} style={styles.drawerCloseButton}>
                 <X size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
@@ -1054,6 +1161,7 @@ export default function App() {
 
               {[
                 { label: 'Live-Ticker starten', icon: <PlusCircle size={20} color="#C01830" />, action: openTickerFlow },
+                { label: 'Favoriten', icon: <Star size={20} color={colors.text} />, action: () => setShowFavorites(true) },
                 userRole === 'coach' ? { label: 'Vereinsverwaltung', icon: <Trophy size={20} color={colors.text} />, action: handleVerwaltung } : null,
                 { label: 'Konto', icon: <User size={20} color={colors.text} />, action: () => setShowAccountInfo(true) },
                 { label: 'Einstellungen', icon: <LayoutGrid size={20} color={colors.text} />, action: () => setShowSettings(true) },
@@ -1067,8 +1175,8 @@ export default function App() {
                   key={index} 
                   style={styles.drawerItem}
                   onPress={() => {
-                    setIsMenuOpen(false);
-                    if(item.action) {
+                    closeMenu();
+                    if (item.action) {
                       item.action();
                     } else {
                       console.log(`${item.label} geklickt`);
@@ -1084,17 +1192,15 @@ export default function App() {
                   </Text>
                 </TouchableOpacity>
               ))}
+              <View style={styles.drawerSignOutInline}>
+                <TouchableOpacity style={styles.drawerSignOutBtn} onPress={handleSignOut} activeOpacity={0.85}>
+                  <LogOut size={18} color="#C01830" />
+                  <Text style={styles.drawerSignOutText}>Abmelden</Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
 
-            {/* ABMELDEN */}
-            <View style={styles.drawerSignOutWrap}>
-              <TouchableOpacity style={styles.drawerSignOutBtn} onPress={handleSignOut} activeOpacity={0.85}>
-                <LogOut size={18} color="#C01830" />
-                <Text style={styles.drawerSignOutText}>Abmelden</Text>
-              </TouchableOpacity>
-            </View>
-
-          </View>
+          </Animated.View>
         </View>
       )}
     </SafeAreaView>

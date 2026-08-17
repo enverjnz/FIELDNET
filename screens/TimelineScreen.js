@@ -14,6 +14,7 @@ import {
 } from '../lib/tickerEvents';
 import { useTheme } from '../context/ThemeContext';
 import { createTimelineStyles } from '../theme/tickerCodeStyles';
+import EdgeSwipeBack from '../components/EdgeSwipeBack';
 
 export default function TimelineScreen({ gameId, onBack }) {
   const { colors } = useTheme();
@@ -74,6 +75,7 @@ export default function TimelineScreen({ gameId, onBack }) {
     : null;
 
   return (
+    <EdgeSwipeBack onBack={onBack} enabled={!!onBack}>
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={onBack}>
@@ -169,5 +171,6 @@ export default function TimelineScreen({ gameId, onBack }) {
         </ScrollView>
       )}
     </SafeAreaView>
+    </EdgeSwipeBack>
   );
 }

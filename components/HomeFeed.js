@@ -19,6 +19,7 @@ import {
 } from '../lib/leagueContent';
 import { fetchManagedTeamIds, canManageTeamPost } from '../lib/teamManagers';
 import PostCard from './PostCard';
+import TeamProfileScreen from '../screens/TeamProfileScreen';
 
 function TeamGameLogo({ uri, label, styles }) {
   if (uri) {
@@ -143,6 +144,7 @@ export default function HomeFeed({ onOpenTimeline, onPullRefresh, onEditPost }) 
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [managedTeamIds, setManagedTeamIds] = useState([]);
+  const [viewTeamId, setViewTeamId] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -207,6 +209,16 @@ export default function HomeFeed({ onOpenTimeline, onPullRefresh, onEditPost }) 
   );
 
   const scrollContentStyle = { flexGrow: 1 };
+
+  if (viewTeamId) {
+    return (
+      <TeamProfileScreen
+        teamId={viewTeamId}
+        readOnly
+        onBack={() => setViewTeamId(null)}
+      />
+    );
+  }
 
   if (!isFilterReady && !catalogLoading) {
     return (
@@ -314,8 +326,11 @@ export default function HomeFeed({ onOpenTimeline, onPullRefresh, onEditPost }) 
             <PostCard
               key={post.id}
               post={post}
+              variant="hero"
               showTeamHeader
               showActions
+              showFavorite
+              onTeamPress={setViewTeamId}
               onEdit={
                 onEditPost && canManageTeamPost(post.team_id, managedTeamIds)
                   ? onEditPost
